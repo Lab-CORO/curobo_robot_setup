@@ -1,0 +1,9 @@
+<library path="curobo_robot_setup">
+  <class name="curobo_robot_setup/CuRoboSetupPanel" 
+         type="curobo_robot_setup::CuRoboSetupPanel" 
+         base_class_type="rviz_common::Panel">
+    <description>
+      cuRobo Robot Setup Panel - Load URDF and edit collision spheres for cuRobo integration
+    </description>
+  </class>
+</library>
