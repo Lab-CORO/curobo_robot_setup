@@ -46,11 +46,15 @@ set(UI_FILES
 set(SOURCE_FILES
   src/curobo_robot_setup_panel.cpp
   src/sphere_manager.cpp
+  src/curobo_config.cpp
+  src/joint_config_dialog.cpp
 )
 
 set(HEADER_FILES
   include/curobo_robot_setup/curobo_robot_setup_panel.hpp
   include/curobo_robot_setup/sphere_manager.hpp
+  include/curobo_robot_setup/curobo_config.hpp
+  include/curobo_robot_setup/joint_config_dialog.hpp
 )
 
 # Create library
@@ -74,6 +78,7 @@ ament_target_dependencies(${PROJECT_NAME}
 # Link libraries
 target_link_libraries(${PROJECT_NAME}
   Qt5::Widgets
+  yaml-cpp
 )
 
 # Install library

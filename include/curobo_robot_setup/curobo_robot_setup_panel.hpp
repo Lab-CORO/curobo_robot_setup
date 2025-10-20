@@ -3,6 +3,7 @@
 
 #include <memory>
 #include <string>
+#include <map>
 
 #include <rviz_common/panel.hpp>
 #include <rclcpp/rclcpp.hpp>
@@ -10,6 +11,7 @@
 #include <urdf/model.h>
 
 #include "curobo_robot_setup/sphere_manager.hpp"
+#include "curobo_robot_setup/curobo_config.hpp"
 
 #include <QWidget>
 #include <QPushButton>
@@ -17,8 +19,9 @@
 #include <QTreeWidget>
 #include <QLabel>
 #include <QTabWidget>
+#include <QComboBox>
 
-// Classe générée depuis le fichier .ui
+// Forward declaration pour la classe UI générée par Qt
 namespace Ui {
 class Dialog;
 }
@@ -39,18 +42,21 @@ public:
   virtual void save(rviz_common::Config config) const override;
 
 private Q_SLOTS:
-  // URDF Tab
+  // Tab 1: URDF
   void onLoadUrdf();
   
-  // Sphere Editor Tab
+  // Tab 2: Sphere Editor
   void onLinkSelected(QTreeWidgetItem* item, int column);
   void onAddSphere();
   void onDeleteSphere();
   void onSphereSelected(QTreeWidgetItem* item, int column);
-  
-  // Sphere properties changed
   void onRadiusChanged(double value);
   void onPositionChanged(double value);
+  
+  // Tab 3: Configuration
+  void onConfigureJoints();
+  void onSaveYaml();
+  void onLoadYaml();
 
 private:
   void setupConnections();
@@ -60,14 +66,18 @@ private:
   void publishUrdf();
   void updateStatusLabel(const QString& message, bool success = true);
   
-  // Links tree
+  // Links
   void populateLinksTree();
-  void buildLinkTreeRecursive(QTreeWidgetItem* parent, 
-                              const std::string& link_name);
+  void buildLinkTreeRecursive(QTreeWidgetItem* parent, const std::string& link_name);
   std::string getLinkType(const std::string& link_name) const;
+  void populateLinkComboBoxes();
   
-  // Spheres tree
+  // Spheres
   void updateSpheresTree();
+  
+  // Configuration
+  void updateConfigTab();
+  void initializeJointConfigs();
   
   // UI générée par Qt Designer
   Ui::Dialog* ui_;
@@ -77,8 +87,9 @@ private:
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr urdf_publisher_;
   rclcpp::TimerBase::SharedPtr publish_timer_;
 
-  // Sphere Manager
+  // Managers
   std::unique_ptr<SphereManager> sphere_manager_;
+  std::unique_ptr<CuRoboConfig> curobo_config_;
 
   // Données
   std::shared_ptr<urdf::Model> robot_model_;
@@ -86,6 +97,8 @@ private:
   std::string current_urdf_path_;
   std::string selected_link_;
   std::string selected_sphere_id_;
+  
+  std::map<std::string, JointConfig> joint_configs_;
   
   // Status
   QLabel* status_label_;

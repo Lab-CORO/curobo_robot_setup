@@ -1,4 +1,5 @@
 #include "curobo_robot_setup/curobo_robot_setup_panel.hpp"
+#include "curobo_robot_setup/joint_config_dialog.hpp"
 #include "ui_curobo_robot_setup.h"
 
 #include <QFileDialog>
@@ -36,22 +37,23 @@ CuRoboSetupPanel::CuRoboSetupPanel(QWidget* parent)
     }
   );
 
-  // Créer le Sphere Manager
+  // Créer les managers
   sphere_manager_ = std::make_unique<SphereManager>(node_);
+  curobo_config_ = std::make_unique<CuRoboConfig>();
 
   // Setup UI
   ui_->setupUi(this);
   
-  // Ajouter label de status dans le tab URDF loader (si layout existe)
+  // Ajouter label de status
   status_label_ = new QLabel("Ready to load URDF", ui_->urdf_loader);
-  status_label_->setGeometry(10, 150, 340, 30);
+  status_label_->setGeometry(10, 150, 380, 30);
   status_label_->setWordWrap(true);
   status_label_->setStyleSheet("QLabel { color: #666; }");
 
   // Connecter les signaux
   setupConnections();
 
-  RCLCPP_INFO(node_->get_logger(), "CuRobo Robot Setup Panel initialized");
+  RCLCPP_INFO(node_->get_logger(), "CuRobo Robot Setup Panel initialized (MVP 3)");
 }
 
 CuRoboSetupPanel::~CuRoboSetupPanel()
@@ -65,22 +67,19 @@ void CuRoboSetupPanel::setupConnections()
   connect(ui_->pushButton_load_urdf, &QPushButton::clicked, 
           this, &CuRoboSetupPanel::onLoadUrdf);
 
-  // Tab 2: Sphere Editor - Link selection
+  // Tab 2: Sphere Editor
   connect(ui_->treeWidget_links, &QTreeWidget::itemClicked,
           this, &CuRoboSetupPanel::onLinkSelected);
 
-  // Sphere actions
   connect(ui_->pushButton_add_sphere, &QPushButton::clicked,
           this, &CuRoboSetupPanel::onAddSphere);
   
   connect(ui_->pushButton_delete_sphere, &QPushButton::clicked,
           this, &CuRoboSetupPanel::onDeleteSphere);
 
-  // Sphere selection
   connect(ui_->treeWidget_spheres, &QTreeWidget::itemClicked,
           this, &CuRoboSetupPanel::onSphereSelected);
 
-  // Sphere properties changed
   connect(ui_->doubleSpinBox_radius, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
           this, &CuRoboSetupPanel::onRadiusChanged);
   
@@ -92,6 +91,16 @@ void CuRoboSetupPanel::setupConnections()
   
   connect(ui_->doubleSpinBox_z, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
           this, &CuRoboSetupPanel::onPositionChanged);
+
+  // Tab 3: Configuration
+  connect(ui_->pushButton_configure_joints, &QPushButton::clicked,
+          this, &CuRoboSetupPanel::onConfigureJoints);
+  
+  connect(ui_->pushButton_save_yaml, &QPushButton::clicked,
+          this, &CuRoboSetupPanel::onSaveYaml);
+  
+  connect(ui_->pushButton_load_yaml, &QPushButton::clicked,
+          this, &CuRoboSetupPanel::onLoadYaml);
 }
 
 // ============================================================================
@@ -121,12 +130,19 @@ void CuRoboSetupPanel::onLoadUrdf()
     // Peupler l'arbre des links
     populateLinksTree();
     
-    // Basculer vers l'onglet Sphere Editor
+    // Peupler les combo boxes
+    populateLinkComboBoxes();
+    
+    // Initialiser les configs des joints
+    initializeJointConfigs();
+    
+    // Mettre à jour le tab Configuration
+    updateConfigTab();
+    
+    // Basculer vers Sphere Editor
     ui_->tabWidget->setCurrentIndex(1);
   } else {
     updateStatusLabel("✗ Failed to load URDF", false);
-    RCLCPP_ERROR(node_->get_logger(), "Failed to load URDF: %s", 
-                 filename.toStdString().c_str());
   }
 }
 
@@ -153,91 +169,67 @@ bool CuRoboSetupPanel::loadUrdfFromFile(const std::string& filepath)
     // Parser l'URDF
     robot_model_ = std::make_shared<urdf::Model>();
     if (!robot_model_->initString(current_urdf_string_)) {
-      QMessageBox::critical(this, "Error",
-        "Failed to parse URDF. Check file format.");
+      QMessageBox::critical(this, "Error", "Failed to parse URDF");
       return false;
     }
 
     current_urdf_path_ = filepath;
-
-    // Publier l'URDF
     publishUrdf();
 
-    // Afficher info
     QString info = QString("Robot: %1\nLinks: %2\nJoints: %3\n\n"
-                          "Now add a RobotModel display in RViz to visualize the robot.")
+                          "Add RobotModel display in RViz to visualize.")
       .arg(QString::fromStdString(robot_model_->getName()))
       .arg(robot_model_->links_.size())
       .arg(robot_model_->joints_.size());
     
     QMessageBox::information(this, "URDF Loaded", info);
-
     return true;
 
   } catch (const std::exception& e) {
-    QMessageBox::critical(this, "Error", 
-      QString("Exception while loading URDF: %1").arg(e.what()));
-    RCLCPP_ERROR(node_->get_logger(), "Exception: %s", e.what());
+    QMessageBox::critical(this, "Error", QString("Exception: %1").arg(e.what()));
     return false;
   }
 }
 
 void CuRoboSetupPanel::publishUrdf()
 {
-  if (current_urdf_string_.empty()) {
-    return;
-  }
+  if (current_urdf_string_.empty()) return;
 
   auto msg = std_msgs::msg::String();
   msg.data = current_urdf_string_;
   urdf_publisher_->publish(msg);
-
-  RCLCPP_DEBUG(node_->get_logger(), "Published robot_description");
 }
 
 void CuRoboSetupPanel::updateStatusLabel(const QString& message, bool success)
 {
-  if (success) {
-    status_label_->setStyleSheet("QLabel { color: green; font-weight: bold; }");
-  } else {
-    status_label_->setStyleSheet("QLabel { color: red; font-weight: bold; }");
-  }
+  status_label_->setStyleSheet(success ? 
+    "QLabel { color: green; font-weight: bold; }" : 
+    "QLabel { color: red; font-weight: bold; }");
   status_label_->setText(message);
 }
 
 // ============================================================================
-// Links Tree
+// Links Management
 // ============================================================================
 
 void CuRoboSetupPanel::populateLinksTree()
 {
-  if (!robot_model_) {
-    return;
-  }
+  if (!robot_model_) return;
 
   ui_->treeWidget_links->clear();
-  
-  // Trouver le lien racine
   std::string root_link = robot_model_->getRoot()->name;
-  
-  // Construire l'arbre récursivement
   buildLinkTreeRecursive(nullptr, root_link);
-  
   ui_->treeWidget_links->expandAll();
-  
-  RCLCPP_INFO(node_->get_logger(), "Populated links tree with %zu links", 
-              robot_model_->links_.size());
 }
 
 void CuRoboSetupPanel::buildLinkTreeRecursive(
   QTreeWidgetItem* parent, 
   const std::string& link_name)
 {
-  // Créer l'item pour ce link
   QTreeWidgetItem* item = new QTreeWidgetItem();
   item->setText(0, QString::fromStdString(link_name));
   item->setText(1, QString::fromStdString(getLinkType(link_name)));
-  item->setData(0, Qt::UserRole, QString::fromStdString(link_name));  // Stocker le nom
+  item->setData(0, Qt::UserRole, QString::fromStdString(link_name));
   
   if (parent) {
     parent->addChild(item);
@@ -245,70 +237,74 @@ void CuRoboSetupPanel::buildLinkTreeRecursive(
     ui_->treeWidget_links->addTopLevelItem(item);
   }
   
-  // Trouver les enfants de ce link
   for (const auto& joint_pair : robot_model_->joints_) {
-    const auto& joint = joint_pair.second;
-    if (joint->parent_link_name == link_name) {
-      // Ce joint part du link actuel
-      buildLinkTreeRecursive(item, joint->child_link_name);
+    if (joint_pair.second->parent_link_name == link_name) {
+      buildLinkTreeRecursive(item, joint_pair.second->child_link_name);
     }
   }
 }
 
 std::string CuRoboSetupPanel::getLinkType(const std::string& link_name) const
 {
-  if (!robot_model_) {
-    return "unknown";
-  }
+  if (!robot_model_) return "unknown";
   
-  // Vérifier si c'est la racine
-  if (robot_model_->getRoot()->name == link_name) {
-    return "root";
-  }
+  if (robot_model_->getRoot()->name == link_name) return "root";
   
-  // Vérifier si c'est une feuille (pas de joint enfant)
-  bool has_children = false;
   for (const auto& joint_pair : robot_model_->joints_) {
     if (joint_pair.second->parent_link_name == link_name) {
-      has_children = true;
+      return "child";
+    }
+  }
+  return "leaf";
+}
+
+void CuRoboSetupPanel::populateLinkComboBoxes()
+{
+  if (!robot_model_) return;
+
+  ui_->comboBox_base_link->clear();
+  ui_->comboBox_ee_link->clear();
+
+  for (const auto& link_pair : robot_model_->links_) {
+    QString link_name = QString::fromStdString(link_pair.first);
+    ui_->comboBox_base_link->addItem(link_name);
+    ui_->comboBox_ee_link->addItem(link_name);
+  }
+
+  // Set defaults
+  ui_->comboBox_base_link->setCurrentText(
+    QString::fromStdString(robot_model_->getRoot()->name));
+  
+  // Find leaf link for EE
+  for (const auto& link_pair : robot_model_->links_) {
+    std::string link_name = link_pair.first;
+    if (getLinkType(link_name) == "leaf") {
+      ui_->comboBox_ee_link->setCurrentText(QString::fromStdString(link_name));
       break;
     }
   }
-  
-  return has_children ? "child" : "leaf";
-}
-
-// ============================================================================
-// Link Selection
-// ============================================================================
-
-void CuRoboSetupPanel::onLinkSelected(QTreeWidgetItem* item, int column)
-{
-  if (!item) {
-    return;
-  }
-  
-  selected_link_ = item->data(0, Qt::UserRole).toString().toStdString();
-  
-  ui_->label_selected_link->setText(QString::fromStdString(selected_link_));
-  ui_->label_selected_link->setStyleSheet("QLabel { font-weight: bold; color: #2196F3; }");
-  
-  RCLCPP_INFO(node_->get_logger(), "Selected link: %s", selected_link_.c_str());
 }
 
 // ============================================================================
 // Sphere Management
 // ============================================================================
 
+void CuRoboSetupPanel::onLinkSelected(QTreeWidgetItem* item, int column)
+{
+  if (!item) return;
+  
+  selected_link_ = item->data(0, Qt::UserRole).toString().toStdString();
+  ui_->label_selected_link->setText(QString::fromStdString(selected_link_));
+}
+
 void CuRoboSetupPanel::onAddSphere()
 {
   if (selected_link_.empty()) {
     QMessageBox::warning(this, "No Link Selected", 
-      "Please select a link in the tree first.");
+      "Please select a link first.");
     return;
   }
   
-  // Récupérer les propriétés depuis l'UI
   double radius = ui_->doubleSpinBox_radius->value();
   Eigen::Vector3d position(
     ui_->doubleSpinBox_x->value(),
@@ -316,57 +312,40 @@ void CuRoboSetupPanel::onAddSphere()
     ui_->doubleSpinBox_z->value()
   );
   
-  // Ajouter la sphère
-  std::string sphere_id = sphere_manager_->addSphere(selected_link_, radius, position);
-  
-  // Mettre à jour l'arbre des sphères
+  sphere_manager_->addSphere(selected_link_, radius, position);
   updateSpheresTree();
-  
-  RCLCPP_INFO(node_->get_logger(), 
-              "Added sphere '%s' to link '%s'", 
-              sphere_id.c_str(), selected_link_.c_str());
+  updateConfigTab();
 }
 
 void CuRoboSetupPanel::onDeleteSphere()
 {
   if (selected_sphere_id_.empty()) {
     QMessageBox::warning(this, "No Sphere Selected", 
-      "Please select a sphere in the list first.");
+      "Please select a sphere first.");
     return;
   }
   
   sphere_manager_->removeSphere(selected_sphere_id_);
-  
   selected_sphere_id_.clear();
-  
-  // Mettre à jour l'arbre
   updateSpheresTree();
-  
-  RCLCPP_INFO(node_->get_logger(), "Deleted sphere");
+  updateConfigTab();
 }
 
 void CuRoboSetupPanel::onSphereSelected(QTreeWidgetItem* item, int column)
 {
-  if (!item) {
-    return;
-  }
+  if (!item) return;
   
-  // Vérifier si c'est un item de sphère (pas un link parent)
   QString sphere_id = item->data(0, Qt::UserRole).toString();
+  if (sphere_id.isEmpty()) return;
   
-  if (!sphere_id.isEmpty()) {
-    selected_sphere_id_ = sphere_id.toStdString();
-    
-    // Charger les propriétés de la sphère dans l'UI
-    const Sphere* sphere = sphere_manager_->getSphere(selected_sphere_id_);
-    if (sphere) {
-      ui_->doubleSpinBox_radius->setValue(sphere->radius);
-      ui_->doubleSpinBox_x->setValue(sphere->position.x());
-      ui_->doubleSpinBox_y->setValue(sphere->position.y());
-      ui_->doubleSpinBox_z->setValue(sphere->position.z());
-      
-      RCLCPP_INFO(node_->get_logger(), "Selected sphere: %s", selected_sphere_id_.c_str());
-    }
+  selected_sphere_id_ = sphere_id.toStdString();
+  
+  const Sphere* sphere = sphere_manager_->getSphere(selected_sphere_id_);
+  if (sphere) {
+    ui_->doubleSpinBox_radius->setValue(sphere->radius);
+    ui_->doubleSpinBox_x->setValue(sphere->position.x());
+    ui_->doubleSpinBox_y->setValue(sphere->position.y());
+    ui_->doubleSpinBox_z->setValue(sphere->position.z());
   }
 }
 
@@ -374,22 +353,15 @@ void CuRoboSetupPanel::updateSpheresTree()
 {
   ui_->treeWidget_spheres->clear();
   
-  // Obtenir toutes les sphères groupées par link
   auto spheres_by_link = sphere_manager_->getAllSpheresByLink();
   
-  // Créer un item pour chaque link qui a des sphères
   for (const auto& pair : spheres_by_link) {
-    const std::string& link_name = pair.first;
-    const std::vector<Sphere>& spheres = pair.second;
-    
-    // Item parent pour le link
     QTreeWidgetItem* link_item = new QTreeWidgetItem();
-    link_item->setText(0, QString("📦 %1").arg(QString::fromStdString(link_name)));
+    link_item->setText(0, QString("📦 %1").arg(QString::fromStdString(pair.first)));
     link_item->setFont(0, QFont("", -1, QFont::Bold));
     ui_->treeWidget_spheres->addTopLevelItem(link_item);
     
-    // Items enfants pour chaque sphère
-    for (const Sphere& sphere : spheres) {
+    for (const Sphere& sphere : pair.second) {
       QTreeWidgetItem* sphere_item = new QTreeWidgetItem(link_item);
       sphere_item->setText(0, QString("  ⚫ %1").arg(QString::fromStdString(sphere.id)));
       sphere_item->setText(1, QString::number(sphere.radius, 'f', 4));
@@ -397,35 +369,19 @@ void CuRoboSetupPanel::updateSpheresTree()
         .arg(sphere.position.x(), 0, 'f', 3)
         .arg(sphere.position.y(), 0, 'f', 3)
         .arg(sphere.position.z(), 0, 'f', 3));
-      
-      // Stocker l'ID de la sphère
       sphere_item->setData(0, Qt::UserRole, QString::fromStdString(sphere.id));
     }
   }
   
   ui_->treeWidget_spheres->expandAll();
-  
-  RCLCPP_INFO(node_->get_logger(), 
-              "Updated spheres tree: %zu links, %zu total spheres",
-              spheres_by_link.size(), 
-              sphere_manager_->getTotalSphereCount());
 }
-
-// ============================================================================
-// Sphere Properties
-// ============================================================================
 
 void CuRoboSetupPanel::onRadiusChanged(double value)
 {
-  // Si une sphère est sélectionnée, la mettre à jour
   if (!selected_sphere_id_.empty()) {
     const Sphere* sphere = sphere_manager_->getSphere(selected_sphere_id_);
     if (sphere) {
-      sphere_manager_->updateSphere(
-        selected_sphere_id_,
-        value,
-        sphere->position
-      );
+      sphere_manager_->updateSphere(selected_sphere_id_, value, sphere->position);
       updateSpheresTree();
     }
   }
@@ -433,24 +389,153 @@ void CuRoboSetupPanel::onRadiusChanged(double value)
 
 void CuRoboSetupPanel::onPositionChanged(double value)
 {
-  // Si une sphère est sélectionnée, la mettre à jour
   if (!selected_sphere_id_.empty()) {
     const Sphere* sphere = sphere_manager_->getSphere(selected_sphere_id_);
     if (sphere) {
-      Eigen::Vector3d new_position(
+      Eigen::Vector3d new_pos(
         ui_->doubleSpinBox_x->value(),
         ui_->doubleSpinBox_y->value(),
         ui_->doubleSpinBox_z->value()
       );
-      
-      sphere_manager_->updateSphere(
-        selected_sphere_id_,
-        sphere->radius,
-        new_position
-      );
+      sphere_manager_->updateSphere(selected_sphere_id_, sphere->radius, new_pos);
       updateSpheresTree();
     }
   }
+}
+
+// ============================================================================
+// Configuration
+// ============================================================================
+
+void CuRoboSetupPanel::initializeJointConfigs()
+{
+  if (!robot_model_) return;
+
+  joint_configs_.clear();
+  
+  auto joint_names = CuRoboConfig::getActiveJointNames(robot_model_);
+  for (const auto& joint_name : joint_names) {
+    joint_configs_[joint_name] = CuRoboConfig::getDefaultJointConfig(robot_model_, joint_name);
+  }
+}
+
+void CuRoboSetupPanel::onConfigureJoints()
+{
+  if (!robot_model_) {
+    QMessageBox::warning(this, "No Robot", "Load URDF first");
+    return;
+  }
+
+  JointConfigDialog dialog(robot_model_, joint_configs_, this);
+  if (dialog.exec() == QDialog::Accepted) {
+    updateConfigTab();
+  }
+}
+
+void CuRoboSetupPanel::updateConfigTab()
+{
+  if (!robot_model_) return;
+
+  // Update statistics
+  int active_joints = 0;
+  for (const auto& pair : joint_configs_) {
+    if (pair.second.active) active_joints++;
+  }
+
+  QString stats = QString("URDF: %1\nLinks: %2\nJoints: %3\nSpheres: %4")
+    .arg(QString::fromStdString(robot_model_->getName()))
+    .arg(robot_model_->links_.size())
+    .arg(robot_model_->joints_.size())
+    .arg(sphere_manager_->getTotalSphereCount());
+  
+  ui_->label_stats->setText(stats);
+
+  ui_->label_joints_summary->setText(
+    QString("%1 active joints configured").arg(active_joints));
+}
+
+void CuRoboSetupPanel::onSaveYaml()
+{
+  if (!robot_model_) {
+    QMessageBox::warning(this, "No Robot", "Load URDF first");
+    return;
+  }
+
+  QString filename = QFileDialog::getSaveFileName(
+    this, "Save cuRobo Configuration", "", "YAML Files (*.yml *.yaml)");
+
+  if (filename.isEmpty()) return;
+
+  // Get configuration
+  std::string base_link = ui_->comboBox_base_link->currentText().toStdString();
+  std::string ee_link = ui_->comboBox_ee_link->currentText().toStdString();
+  auto spheres_by_link = sphere_manager_->getAllSpheresByLink();
+
+  // Validate
+  std::string error;
+  if (!curobo_config_->validateConfig(robot_model_, base_link, ee_link, joint_configs_, error)) {
+    QMessageBox::critical(this, "Validation Error", QString::fromStdString(error));
+    return;
+  }
+
+  // Save
+  if (curobo_config_->saveToYaml(filename.toStdString(), current_urdf_path_, 
+                                  base_link, ee_link, spheres_by_link, joint_configs_)) {
+    QMessageBox::information(this, "Success", 
+      QString("Configuration saved to:\n%1").arg(filename));
+  } else {
+    QMessageBox::critical(this, "Error", "Failed to save YAML");
+  }
+}
+
+void CuRoboSetupPanel::onLoadYaml()
+{
+  QString filename = QFileDialog::getOpenFileName(
+    this, "Load cuRobo Configuration", "", "YAML Files (*.yml *.yaml)");
+
+  if (filename.isEmpty()) return;
+
+  // Load
+  std::string urdf_path, base_link, ee_link;
+  std::map<std::string, std::vector<Sphere>> spheres_by_link;
+  std::map<std::string, JointConfig> loaded_configs;
+
+  if (!curobo_config_->loadFromYaml(filename.toStdString(), urdf_path, 
+                                     base_link, ee_link, spheres_by_link, loaded_configs)) {
+    QMessageBox::critical(this, "Error", "Failed to load YAML");
+    return;
+  }
+
+  // Load URDF if specified and different
+  if (!urdf_path.empty() && urdf_path != current_urdf_path_) {
+    if (QMessageBox::question(this, "Load URDF", 
+        QString("Load URDF from:\n%1").arg(QString::fromStdString(urdf_path))) 
+        == QMessageBox::Yes) {
+      loadUrdfFromFile(urdf_path);
+      populateLinksTree();
+      populateLinkComboBoxes();
+    }
+  }
+
+  // Clear and load spheres
+  sphere_manager_->clear();
+  for (const auto& pair : spheres_by_link) {
+    for (const auto& sphere : pair.second) {
+      sphere_manager_->addSphere(sphere.parent_link, sphere.radius, sphere.position);
+    }
+  }
+  updateSpheresTree();
+
+  // Load configs
+  joint_configs_ = loaded_configs;
+
+  // Set base/ee links
+  ui_->comboBox_base_link->setCurrentText(QString::fromStdString(base_link));
+  ui_->comboBox_ee_link->setCurrentText(QString::fromStdString(ee_link));
+
+  updateConfigTab();
+  
+  QMessageBox::information(this, "Success", "Configuration loaded successfully");
 }
 
 // ============================================================================
@@ -460,26 +545,14 @@ void CuRoboSetupPanel::onPositionChanged(double value)
 void CuRoboSetupPanel::load(const rviz_common::Config& config)
 {
   Panel::load(config);
-  
-  QString urdf_path;
-  if (config.mapGetString("urdf_path", &urdf_path)) {
-    current_urdf_path_ = urdf_path.toStdString();
-    if (!current_urdf_path_.empty()) {
-      if (loadUrdfFromFile(current_urdf_path_)) {
-        populateLinksTree();
-      }
-    }
-  }
 }
 
 void CuRoboSetupPanel::save(rviz_common::Config config) const
 {
   Panel::save(config);
-  config.mapSetValue("urdf_path", QString::fromStdString(current_urdf_path_));
 }
 
 }  // namespace curobo_robot_setup
 
-// Export du plugin pour RViz2
 #include <pluginlib/class_list_macros.hpp>
 PLUGINLIB_EXPORT_CLASS(curobo_robot_setup::CuRoboSetupPanel, rviz_common::Panel)

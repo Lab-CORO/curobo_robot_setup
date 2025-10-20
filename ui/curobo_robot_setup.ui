@@ -6,26 +6,28 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>400</width>
-    <height>600</height>
+    <width>420</width>
+    <height>650</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>cuRobo Robot Setup</string>
   </property>
-  <layout class="QGridLayout" name="gridLayout_2">
+  <layout class="QGridLayout" name="gridLayout_main">
    <item row="0" column="0">
     <widget class="QTabWidget" name="tabWidget">
      <property name="currentIndex">
       <number>0</number>
      </property>
      
+     <!-- ============================================ -->
      <!-- TAB 1: URDF Loader -->
+     <!-- ============================================ -->
      <widget class="QWidget" name="urdf_loader">
       <attribute name="title">
-       <string>URDF Loader</string>
+       <string>1. URDF Loader</string>
       </attribute>
-      <layout class="QVBoxLayout" name="verticalLayout">
+      <layout class="QVBoxLayout" name="verticalLayout_urdf">
        <item>
         <widget class="QLabel" name="label_urdf_info">
          <property name="text">
@@ -60,7 +62,7 @@
         </widget>
        </item>
        <item>
-        <spacer name="verticalSpacer">
+        <spacer name="verticalSpacer_urdf">
          <property name="orientation">
           <enum>Qt::Vertical</enum>
          </property>
@@ -78,8 +80,9 @@
           <string>&lt;html&gt;&lt;b&gt;Next steps:&lt;/b&gt;&lt;br/&gt;
 1. Add RobotModel display in RViz&lt;br/&gt;
 2. Go to Sphere Editor tab&lt;br/&gt;
-3. Select a link in the tree&lt;br/&gt;
-4. Add collision spheres&lt;/html&gt;</string>
+3. Select links and add collision spheres&lt;br/&gt;
+4. Go to Configuration tab&lt;br/&gt;
+5. Save to YAML file&lt;/html&gt;</string>
          </property>
          <property name="wordWrap">
           <bool>true</bool>
@@ -92,20 +95,22 @@
       </layout>
      </widget>
      
+     <!-- ============================================ -->
      <!-- TAB 2: Sphere Editor -->
+     <!-- ============================================ -->
      <widget class="QWidget" name="sphere_editor">
       <attribute name="title">
-       <string>Sphere Editor</string>
+       <string>2. Sphere Editor</string>
       </attribute>
-      <layout class="QVBoxLayout" name="verticalLayout_2">
+      <layout class="QVBoxLayout" name="verticalLayout_spheres">
        
-       <!-- Section: Robot Links Tree -->
+       <!-- Robot Links Tree -->
        <item>
         <widget class="QGroupBox" name="groupBox_links">
          <property name="title">
-          <string>1. Select Robot Link</string>
+          <string>Select Robot Link</string>
          </property>
-         <layout class="QVBoxLayout" name="verticalLayout_3">
+         <layout class="QVBoxLayout" name="verticalLayout_links">
           <item>
            <widget class="QTreeWidget" name="treeWidget_links">
             <property name="maximumHeight">
@@ -113,9 +118,6 @@
             </property>
             <property name="alternatingRowColors">
              <bool>true</bool>
-            </property>
-            <property name="headerHidden">
-             <bool>false</bool>
             </property>
             <column>
              <property name="text">
@@ -130,7 +132,7 @@
            </widget>
           </item>
           <item>
-           <layout class="QHBoxLayout" name="horizontalLayout_selected">
+           <layout class="QHBoxLayout" name="horizontalLayout_selected_link">
             <item>
              <widget class="QLabel" name="label_selected_link_title">
               <property name="text">
@@ -149,7 +151,7 @@
              </widget>
             </item>
             <item>
-             <spacer name="horizontalSpacer">
+             <spacer name="horizontalSpacer_link">
               <property name="orientation">
                <enum>Qt::Horizontal</enum>
               </property>
@@ -167,13 +169,13 @@
         </widget>
        </item>
        
-       <!-- Section: Sphere Properties -->
+       <!-- Sphere Properties -->
        <item>
         <widget class="QGroupBox" name="groupBox_properties">
          <property name="title">
-          <string>2. Define Sphere Properties</string>
+          <string>Sphere Properties</string>
          </property>
-         <layout class="QGridLayout" name="gridLayout">
+         <layout class="QGridLayout" name="gridLayout_properties">
           <item row="0" column="0">
            <widget class="QLabel" name="label_radius">
             <property name="text">
@@ -209,9 +211,9 @@
           </item>
           
           <item row="1" column="0" colspan="4">
-           <widget class="QLabel" name="label_position">
+           <widget class="QLabel" name="label_position_title">
             <property name="text">
-             <string>Position (relative to link origin):</string>
+             <string>Position (relative to link):</string>
             </property>
            </widget>
           </item>
@@ -287,60 +289,45 @@
             </property>
            </widget>
           </item>
-          <item row="3" column="2" colspan="2">
-           <widget class="QLabel" name="label_position_unit">
-            <property name="text">
-             <string>meters</string>
-            </property>
-            <property name="styleSheet">
-             <string>QLabel { color: gray; font-size: 9pt; }</string>
-            </property>
-           </widget>
-          </item>
          </layout>
         </widget>
        </item>
        
-       <!-- Buttons: Add and Delete -->
+       <!-- Action Buttons -->
        <item>
-        <widget class="QGroupBox" name="groupBox_actions">
-         <property name="title">
-          <string>3. Actions</string>
-         </property>
-         <layout class="QHBoxLayout" name="horizontalLayout_3">
-          <item>
-           <widget class="QPushButton" name="pushButton_add_sphere">
-            <property name="text">
-             <string>Add Sphere</string>
-            </property>
-            <property name="minimumHeight">
-             <number>35</number>
-            </property>
-            <property name="styleSheet">
-             <string>QPushButton { background-color: #4CAF50; color: white; font-weight: bold; }</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QPushButton" name="pushButton_delete_sphere">
-            <property name="text">
-             <string>Delete Selected</string>
-            </property>
-            <property name="minimumHeight">
-             <number>35</number>
-            </property>
-            <property name="styleSheet">
-             <string>QPushButton { background-color: #f44336; color: white; }</string>
-            </property>
-           </widget>
-          </item>
-         </layout>
-        </widget>
+        <layout class="QHBoxLayout" name="horizontalLayout_sphere_actions">
+         <item>
+          <widget class="QPushButton" name="pushButton_add_sphere">
+           <property name="text">
+            <string>Add Sphere</string>
+           </property>
+           <property name="minimumHeight">
+            <number>35</number>
+           </property>
+           <property name="styleSheet">
+            <string>QPushButton { background-color: #4CAF50; color: white; font-weight: bold; }</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="pushButton_delete_sphere">
+           <property name="text">
+            <string>Delete Selected</string>
+           </property>
+           <property name="minimumHeight">
+            <number>35</number>
+           </property>
+           <property name="styleSheet">
+            <string>QPushButton { background-color: #f44336; color: white; }</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
        </item>
        
-       <!-- Sphere List -->
+       <!-- Spheres List -->
        <item>
-        <widget class="QLabel" name="label_sphere_list">
+        <widget class="QLabel" name="label_sphere_list_title">
          <property name="text">
           <string>Collision Spheres (sorted by link):</string>
          </property>
@@ -354,9 +341,6 @@
          <property name="alternatingRowColors">
           <bool>true</bool>
          </property>
-         <property name="selectionMode">
-          <enum>QAbstractItemView::SingleSelection</enum>
-         </property>
          <column>
           <property name="text">
            <string>Link / Sphere ID</string>
@@ -369,9 +353,159 @@
          </column>
          <column>
           <property name="text">
-           <string>Position (x, y, z)</string>
+           <string>Position</string>
           </property>
          </column>
+        </widget>
+       </item>
+       
+      </layout>
+     </widget>
+     
+     <!-- ============================================ -->
+     <!-- TAB 3: Configuration -->
+     <!-- ============================================ -->
+     <widget class="QWidget" name="configuration">
+      <attribute name="title">
+       <string>3. Configuration</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="verticalLayout_config">
+       
+       <!-- Robot Links -->
+       <item>
+        <widget class="QGroupBox" name="groupBox_robot_links">
+         <property name="title">
+          <string>Robot Links</string>
+         </property>
+         <layout class="QGridLayout" name="gridLayout_robot_links">
+          <item row="0" column="0">
+           <widget class="QLabel" name="label_base_link_title">
+            <property name="text">
+             <string>Base Link:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QComboBox" name="comboBox_base_link"/>
+          </item>
+          
+          <item row="1" column="0">
+           <widget class="QLabel" name="label_ee_link_title">
+            <property name="text">
+             <string>End-Effector Link:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QComboBox" name="comboBox_ee_link"/>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       
+       <!-- Joint Configuration -->
+       <item>
+        <widget class="QGroupBox" name="groupBox_joints">
+         <property name="title">
+          <string>Joint Configuration</string>
+         </property>
+         <layout class="QVBoxLayout" name="verticalLayout_joints">
+          <item>
+           <widget class="QPushButton" name="pushButton_configure_joints">
+            <property name="text">
+             <string>Configure Joints...</string>
+            </property>
+            <property name="minimumHeight">
+             <number>35</number>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="label_joints_summary">
+            <property name="text">
+             <string>0 active joints configured</string>
+            </property>
+            <property name="styleSheet">
+             <string>QLabel { color: gray; font-style: italic; }</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       
+       <!-- Statistics -->
+       <item>
+        <widget class="QGroupBox" name="groupBox_stats">
+         <property name="title">
+          <string>Summary</string>
+         </property>
+         <layout class="QVBoxLayout" name="verticalLayout_stats">
+          <item>
+           <widget class="QLabel" name="label_stats">
+            <property name="text">
+             <string>URDF: Not loaded
+Links: 0
+Joints: 0
+Spheres: 0</string>
+            </property>
+            <property name="wordWrap">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       
+       <item>
+        <spacer name="verticalSpacer_config">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+       
+       <!-- Save/Load Buttons -->
+       <item>
+        <widget class="QGroupBox" name="groupBox_file">
+         <property name="title">
+          <string>File Operations</string>
+         </property>
+         <layout class="QVBoxLayout" name="verticalLayout_file">
+          <item>
+           <widget class="QPushButton" name="pushButton_save_yaml">
+            <property name="text">
+             <string>💾 Save to YAML</string>
+            </property>
+            <property name="minimumHeight">
+             <number>40</number>
+            </property>
+            <property name="styleSheet">
+             <string>QPushButton { background-color: #2196F3; color: white; font-weight: bold; font-size: 12pt; }</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="pushButton_load_yaml">
+            <property name="text">
+             <string>📂 Load from YAML</string>
+            </property>
+            <property name="minimumHeight">
+             <number>40</number>
+            </property>
+            <property name="styleSheet">
+             <string>QPushButton { background-color: #FF9800; color: white; font-weight: bold; font-size: 12pt; }</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
         </widget>
        </item>
        

@@ -164,7 +164,7 @@ visualization_msgs::msg::Marker SphereManager::createMarker(const Sphere& sphere
   visualization_msgs::msg::Marker marker;
   
   marker.header.frame_id = sphere.parent_link;
-  marker.header.stamp = node_->now();
+  marker.header.stamp = rclcpp::Time(0);  // Use latest available TF
   marker.ns = "collision_spheres";
   marker.type = visualization_msgs::msg::Marker::SPHERE;
   marker.action = visualization_msgs::msg::Marker::ADD;
