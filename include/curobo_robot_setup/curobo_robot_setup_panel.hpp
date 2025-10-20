@@ -97,9 +97,11 @@ private:
   std::string current_urdf_path_;
   std::string selected_link_;
   std::string selected_sphere_id_;
-  
+
   std::map<std::string, JointConfig> joint_configs_;
-  
+  CSpaceConfig cspace_config_;
+  SelfCollisionConfig collision_config_;
+
   // Status
   QLabel* status_label_;
 };

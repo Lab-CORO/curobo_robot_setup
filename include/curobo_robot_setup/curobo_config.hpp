@@ -15,14 +15,43 @@ namespace curobo_robot_setup
 struct JointConfig
 {
   bool active = true;
+
+  // Note: Position limits are read from URDF by cuRobo
+  // We keep them for display/validation only
   double pos_min = -3.14;
   double pos_max = 3.14;
-  double vel_max = 2.0;
-  double acc_max = 5.0;
-  double jerk_max = 50.0;
+
+  // Velocity, acceleration, and jerk limits
+  double vel_max = 1.0;
+  double acc_max = 1.0;
+  double jerk_max = 1.0;
+
+  // Collision ignore list
   std::vector<std::string> ignore_collisions;
 
   JointConfig() = default;
+};
+
+struct CSpaceConfig
+{
+  // Global limits (not per-joint)
+  double max_acceleration = 15.0;
+  double max_jerk = 500.0;
+  
+  // Weights (one per joint)
+  std::vector<double> null_space_weight;
+  std::vector<double> cspace_distance_weight;
+  
+  CSpaceConfig() = default;
+};
+
+struct SelfCollisionConfig
+{
+  std::map<std::string, std::vector<std::string>> ignore_pairs;
+  std::map<std::string, double> buffer_distances;
+  double collision_sphere_buffer = 0.0;
+  
+  SelfCollisionConfig() = default;
 };
 
 class CuRoboConfig
@@ -38,7 +67,9 @@ public:
     const std::string& base_link,
     const std::string& ee_link,
     const std::map<std::string, std::vector<Sphere>>& spheres_by_link,
-    const std::map<std::string, JointConfig>& joint_configs
+    const std::map<std::string, JointConfig>& joint_configs,
+    const CSpaceConfig& cspace_config,
+    const SelfCollisionConfig& collision_config
   );
 
   // Import from cuRobo YAML format
@@ -48,7 +79,9 @@ public:
     std::string& base_link,
     std::string& ee_link,
     std::map<std::string, std::vector<Sphere>>& spheres_by_link,
-    std::map<std::string, JointConfig>& joint_configs
+    std::map<std::string, JointConfig>& joint_configs,
+    CSpaceConfig& cspace_config,
+    SelfCollisionConfig& collision_config
   );
 
   // Helper: Get default joint config from URDF

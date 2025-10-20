@@ -479,9 +479,10 @@ void CuRoboSetupPanel::onSaveYaml()
   }
 
   // Save
-  if (curobo_config_->saveToYaml(filename.toStdString(), current_urdf_path_, 
-                                  base_link, ee_link, spheres_by_link, joint_configs_)) {
-    QMessageBox::information(this, "Success", 
+  if (curobo_config_->saveToYaml(filename.toStdString(), current_urdf_path_,
+                                  base_link, ee_link, spheres_by_link, joint_configs_,
+                                  cspace_config_, collision_config_)) {
+    QMessageBox::information(this, "Success",
       QString("Configuration saved to:\n%1").arg(filename));
   } else {
     QMessageBox::critical(this, "Error", "Failed to save YAML");
@@ -499,9 +500,12 @@ void CuRoboSetupPanel::onLoadYaml()
   std::string urdf_path, base_link, ee_link;
   std::map<std::string, std::vector<Sphere>> spheres_by_link;
   std::map<std::string, JointConfig> loaded_configs;
+  CSpaceConfig loaded_cspace_config;
+  SelfCollisionConfig loaded_collision_config;
 
-  if (!curobo_config_->loadFromYaml(filename.toStdString(), urdf_path, 
-                                     base_link, ee_link, spheres_by_link, loaded_configs)) {
+  if (!curobo_config_->loadFromYaml(filename.toStdString(), urdf_path,
+                                     base_link, ee_link, spheres_by_link, loaded_configs,
+                                     loaded_cspace_config, loaded_collision_config)) {
     QMessageBox::critical(this, "Error", "Failed to load YAML");
     return;
   }
@@ -528,6 +532,8 @@ void CuRoboSetupPanel::onLoadYaml()
 
   // Load configs
   joint_configs_ = loaded_configs;
+  cspace_config_ = loaded_cspace_config;
+  collision_config_ = loaded_collision_config;
 
   // Set base/ee links
   ui_->comboBox_base_link->setCurrentText(QString::fromStdString(base_link));
