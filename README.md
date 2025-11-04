@@ -2,6 +2,13 @@
 
 An RViz2 plugin for configuring robots for NVIDIA cuRobo motion planning. This tool provides an interactive GUI for loading URDF files, visualizing robots, editing collision spheres, and generating cuRobo-compatible configuration files.
 
+## 📖 Documentation
+
+- **[Quick Start Guide](QUICKSTART.md)** - Get started in 5 minutes
+- **[Complete Tutorial](TUTORIAL.md)** - Detailed step-by-step guide
+- **[Bug Report](BUGS_REPORT.md)** - Known issues and fixes
+- **[Example Files](example/)** - Sample robot configuration
+
 ## Overview
 
 cuRobo Robot Setup streamlines the process of preparing robot configurations for use with NVIDIA's cuRobo motion planning framework. The plugin integrates directly into RViz2 and provides:
@@ -76,6 +83,18 @@ source ~/ros2_ws/install/setup.bash
 
 ### Quick Start
 
+**New to cuRobo Robot Setup?** See the [Quick Start Guide](QUICKSTART.md) for a 5-minute introduction.
+
+#### Option 1: Using the Launch File (Recommended)
+
+```bash
+ros2 launch curobo_robot_setup robot_setup.launch.py urdf_file:=/path/to/your/robot.urdf
+```
+
+This automatically launches RViz2 with all necessary components.
+
+#### Option 2: Manual Setup
+
 1. Launch RViz2:
 ```bash
 rviz2
@@ -86,20 +105,26 @@ rviz2
    - Select **curobo_robot_setup/CuRoboSetupPanel**
    - The panel will appear in the RViz2 interface
 
-3. Load a URDF file:
+3. Add visualization displays:
+   - **RobotModel**: Subscribe to `/robot_description`
+   - **MarkerArray**: Subscribe to `/curobo_collision_spheres`
+
+4. Load a URDF file:
    - Navigate to the **URDF Loader** tab
    - Click **Load URDF**
    - Select your robot's URDF file
 
-4. Configure collision spheres:
+5. Configure collision spheres:
    - Switch to the **Sphere Editor** tab
    - Select links from the tree view
    - Add/edit spheres for each link
 
-5. Configure joints and export:
+6. Configure joints and export:
    - Go to the **Configuration** tab
    - Click **Configure Joints** to set parameters
    - Click **Save YAML** to export the configuration
+
+For detailed instructions, see the [Complete Tutorial](TUTORIAL.md).
 
 ### Panel Tabs
 
@@ -169,7 +194,7 @@ robot_cfg:
 ### Published Topics
 
 - `/robot_description` (std_msgs/String): Robot URDF description
-- `/visualization_marker_array` (visualization_msgs/MarkerArray): Collision sphere markers
+- `/curobo_collision_spheres` (visualization_msgs/MarkerArray): Collision sphere visualization markers
 
 ## Example
 
@@ -191,7 +216,7 @@ See the [example](example/) directory for a sample robot configuration:
 
 ### Spheres not visible in RViz2
 - Add a **MarkerArray** display
-- Set the topic to `/visualization_marker_array`
+- Set the topic to `/curobo_collision_spheres`
 - Ensure the Fixed Frame matches your robot's base frame
 
 ### YAML export fails
@@ -199,14 +224,52 @@ See the [example](example/) directory for a sample robot configuration:
 - Verify joint configuration is complete
 - Check write permissions for the output directory
 
+### Known Issues
+
+See [BUGS_REPORT.md](BUGS_REPORT.md) for a complete list of known issues and their fixes. Key issues:
+- Launch file `robot_description` parameter configuration
+- Sphere ID generation in multi-session use
+- ROS2 initialization in plugin context
+
+We're actively working on fixes for these issues.
+
+## Development
+
+### Code Quality
+
+- See [BUGS_REPORT.md](BUGS_REPORT.md) for known issues and planned fixes
+- All contributions should address critical bugs first (Priority 1)
+- Follow ROS 2 C++ style guidelines
+- Add unit tests for new features
+
+### Testing
+
+```bash
+# Build with tests
+colcon build --packages-select curobo_robot_setup
+
+# Run tests (when available)
+colcon test --packages-select curobo_robot_setup
+```
+
 ## Contributing
 
-Contributions are welcome! Please submit issues and pull requests to the repository.
+Contributions are welcome! Please:
+1. Check [BUGS_REPORT.md](BUGS_REPORT.md) for priority issues
+2. Fork the repository
+3. Create a feature branch
+4. Submit a pull request with clear description
 
 ## Maintainer
 
-Will-44
+**Will-44**
+- GitHub: [@Will-44](https://github.com/Will-44)
+- Lab-CORO: [Lab-CORO](https://github.com/Lab-CORO)
 
 ## Acknowledgments
 
 This tool is designed to work with [NVIDIA cuRobo](https://github.com/NVlabs/curobo), a GPU-accelerated motion planning framework.
+
+## License
+
+See [LICENSE](LICENSE) file for details.

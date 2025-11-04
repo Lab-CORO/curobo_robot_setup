@@ -71,7 +71,7 @@ robot_cfg:
         }
         
         use_global_cumul : True
-        mesh_link_names: mull
+        mesh_link_names: null
 
         cspace:
             joint_names: ['joint1', 'joint2', 'joint3', 'joint4', 'joint5','joint6']
