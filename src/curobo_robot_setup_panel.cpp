@@ -15,10 +15,8 @@ CuRoboSetupPanel::CuRoboSetupPanel(QWidget* parent)
   : rviz_common::Panel(parent)
   , ui_(new Ui::Dialog)
 {
-  // Initialiser ROS2 node
-  if (!rclcpp::ok()) {
-    rclcpp::init(0, nullptr);
-  }
+  // Fix Bug #4: Don't call rclcpp::init() in RViz plugin context
+  // ROS2 is already initialized by RViz2, just create the node
   node_ = rclcpp::Node::make_shared("curobo_robot_setup_panel");
 
   // Publisher pour robot_description

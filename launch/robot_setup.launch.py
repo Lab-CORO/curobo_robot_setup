@@ -2,41 +2,30 @@
 
 import os
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.actions import DeclareLaunchArgument, OpaqueFunction
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, Command
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 from launch.conditions import IfCondition, UnlessCondition
 
 
-def generate_launch_description():
+def launch_setup(context, *args, **kwargs):
+    """Setup function to read URDF file content"""
     # Get package share directory
     pkg_share = FindPackageShare('curobo_robot_setup').find('curobo_robot_setup')
-    default_rviz_config_path = os.path.join(pkg_share, 'rviz', 'robot_setup.rviz')
-
-    # Declare launch arguments
-    urdf_file_arg = DeclareLaunchArgument(
-        'urdf_file',
-        default_value='',
-        description='Path to the URDF file to load'
-    )
-
-    use_gui_arg = DeclareLaunchArgument(
-        'use_gui',
-        default_value='true',
-        description='Use joint_state_publisher_gui if true, otherwise joint_state_publisher'
-    )
-
-    rviz_config_arg = DeclareLaunchArgument(
-        'rviz_config',
-        default_value=default_rviz_config_path,
-        description='Path to RViz config file (optional)'
-    )
 
     # Get launch configuration values
-    urdf_file = LaunchConfiguration('urdf_file')
+    urdf_file_path = LaunchConfiguration('urdf_file').perform(context)
     use_gui = LaunchConfiguration('use_gui')
     rviz_config = LaunchConfiguration('rviz_config')
+
+    # Read URDF file content (Fix Bug #1)
+    robot_description_content = ''
+    if urdf_file_path and os.path.exists(urdf_file_path):
+        with open(urdf_file_path, 'r') as file:
+            robot_description_content = file.read()
+    else:
+        print(f"Warning: URDF file not found or not specified: {urdf_file_path}")
 
     # Robot State Publisher Node
     robot_state_publisher_node = Node(
@@ -45,10 +34,9 @@ def generate_launch_description():
         name='robot_state_publisher',
         output='screen',
         parameters=[{
-            'robot_description': urdf_file,
+            'robot_description': robot_description_content,  # Fixed: pass content, not path
             'use_sim_time': False
-        }],
-        arguments=[urdf_file]
+        }]
     )
 
     # Joint State Publisher Node (without GUI)
@@ -79,12 +67,42 @@ def generate_launch_description():
         parameters=[{'use_sim_time': False}]
     )
 
-    return LaunchDescription([
-        urdf_file_arg,
-        use_gui_arg,
-        rviz_config_arg,
+    return [
         robot_state_publisher_node,
         joint_state_publisher_node,
         joint_state_publisher_gui_node,
         rviz_node
+    ]
+
+
+def generate_launch_description():
+    """Generate launch description with URDF file reading"""
+    # Get package share directory
+    pkg_share = FindPackageShare('curobo_robot_setup').find('curobo_robot_setup')
+    default_rviz_config_path = os.path.join(pkg_share, 'rviz', 'robot_setup.rviz')
+
+    # Declare launch arguments
+    urdf_file_arg = DeclareLaunchArgument(
+        'urdf_file',
+        default_value='',
+        description='Path to the URDF file to load'
+    )
+
+    use_gui_arg = DeclareLaunchArgument(
+        'use_gui',
+        default_value='true',
+        description='Use joint_state_publisher_gui if true, otherwise joint_state_publisher'
+    )
+
+    rviz_config_arg = DeclareLaunchArgument(
+        'rviz_config',
+        default_value=default_rviz_config_path,
+        description='Path to RViz config file (optional)'
+    )
+
+    return LaunchDescription([
+        urdf_file_arg,
+        use_gui_arg,
+        rviz_config_arg,
+        OpaqueFunction(function=launch_setup)
     ])

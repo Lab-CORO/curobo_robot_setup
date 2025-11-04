@@ -19,14 +19,14 @@ struct Sphere
   std::string parent_link;     // Link parent
   double radius;               // Rayon en mètres
   Eigen::Vector3d position;    // Position relative au link (x, y, z)
-  
+
   Sphere() : radius(0.05), position(Eigen::Vector3d::Zero()) {}
-  
+
+  // Constructor without ID generation (ID will be set by SphereManager)
   Sphere(const std::string& link, double r, const Eigen::Vector3d& pos)
     : parent_link(link), radius(r), position(pos)
   {
-    static int counter = 0;
-    id = "sphere_" + std::to_string(counter++);
+    // ID will be set externally by SphereManager to avoid static counter issues (Bug #2)
   }
 };
 
@@ -37,43 +37,47 @@ public:
   ~SphereManager() = default;
 
   // Gestion des sphères
-  std::string addSphere(const std::string& parent_link, 
-                       double radius, 
+  std::string addSphere(const std::string& parent_link,
+                       double radius,
                        const Eigen::Vector3d& position);
-  
+
   bool removeSphere(const std::string& sphere_id);
-  
+
   bool updateSphere(const std::string& sphere_id,
                    double radius,
                    const Eigen::Vector3d& position);
-  
+
   void clear();
-  
+
   // Récupération
   const Sphere* getSphere(const std::string& sphere_id) const;
   std::vector<Sphere> getSpheresByLink(const std::string& link) const;
   std::map<std::string, std::vector<Sphere>> getAllSpheresByLink() const;
   std::vector<Sphere> getAllSpheres() const;
-  
+
   size_t getTotalSphereCount() const { return spheres_.size(); }
-  
+
   // Visualisation
   void publishMarkers();
   void setMarkerColor(float r, float g, float b, float a = 0.7f);
 
 private:
   visualization_msgs::msg::Marker createMarker(const Sphere& sphere);
-  
+  std::string generateSphereId();  // Fix Bug #2: Generate unique IDs
+
   rclcpp::Node::SharedPtr node_;
   rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_pub_;
-  
+
   std::map<std::string, Sphere> spheres_;  // sphere_id -> Sphere
-  
+
   // Couleur des markers
   float marker_color_r_;
   float marker_color_g_;
   float marker_color_b_;
   float marker_color_a_;
+
+  // Fix Bug #2: Counter for unique sphere IDs (member variable, not static)
+  int next_sphere_id_;
 };
 
 }  // namespace curobo_robot_setup

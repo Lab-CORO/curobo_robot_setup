@@ -153,30 +153,58 @@ void JointConfigDialog::populateTable()
 void JointConfigDialog::updateJointConfigs()
 {
   for (int row = 0; row < table_->rowCount(); ++row) {
-    QString joint_name = table_->item(row, 1)->text();
-    
+    // Fix Bug #3: Check for null pointer before dereferencing
+    QTableWidgetItem* name_item = table_->item(row, 1);
+    if (!name_item) {
+      qWarning() << "Missing joint name item at row" << row;
+      continue;
+    }
+    QString joint_name = name_item->text();
+
     JointConfig config;
-    
+
     // Get active state from checkbox
     QWidget* checkbox_widget = table_->cellWidget(row, 0);
-    QCheckBox* checkbox = checkbox_widget->findChild<QCheckBox*>();
-    if (checkbox) {
-      config.active = checkbox->isChecked();
+    if (checkbox_widget) {
+      QCheckBox* checkbox = checkbox_widget->findChild<QCheckBox*>();
+      if (checkbox) {
+        config.active = checkbox->isChecked();
+      }
     }
-    
-    // Get numeric values
+
+    // Fix Bug #3: Get numeric values with null checks
     bool ok;
-    config.pos_min = table_->item(row, 2)->text().toDouble(&ok);
-    config.pos_max = table_->item(row, 3)->text().toDouble(&ok);
-    config.vel_max = table_->item(row, 4)->text().toDouble(&ok);
-    config.acc_max = table_->item(row, 5)->text().toDouble(&ok);
-    config.jerk_max = table_->item(row, 6)->text().toDouble(&ok);
-    
+
+    QTableWidgetItem* pos_min_item = table_->item(row, 2);
+    if (pos_min_item) {
+      config.pos_min = pos_min_item->text().toDouble(&ok);
+    }
+
+    QTableWidgetItem* pos_max_item = table_->item(row, 3);
+    if (pos_max_item) {
+      config.pos_max = pos_max_item->text().toDouble(&ok);
+    }
+
+    QTableWidgetItem* vel_max_item = table_->item(row, 4);
+    if (vel_max_item) {
+      config.vel_max = vel_max_item->text().toDouble(&ok);
+    }
+
+    QTableWidgetItem* acc_max_item = table_->item(row, 5);
+    if (acc_max_item) {
+      config.acc_max = acc_max_item->text().toDouble(&ok);
+    }
+
+    QTableWidgetItem* jerk_max_item = table_->item(row, 6);
+    if (jerk_max_item) {
+      config.jerk_max = jerk_max_item->text().toDouble(&ok);
+    }
+
     // Keep existing collision ignores if any
     if (joint_configs_.find(joint_name.toStdString()) != joint_configs_.end()) {
       config.ignore_collisions = joint_configs_[joint_name.toStdString()].ignore_collisions;
     }
-    
+
     joint_configs_[joint_name.toStdString()] = config;
   }
 }

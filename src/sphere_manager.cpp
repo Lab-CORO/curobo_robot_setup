@@ -9,14 +9,21 @@ SphereManager::SphereManager(rclcpp::Node::SharedPtr node)
   , marker_color_g_(0.8f)
   , marker_color_b_(1.0f)
   , marker_color_a_(0.7f)
+  , next_sphere_id_(0)  // Fix Bug #2: Initialize counter
 {
   // Créer publisher pour les markers
   marker_pub_ = node_->create_publisher<visualization_msgs::msg::MarkerArray>(
     "/curobo_collision_spheres",
     10
   );
-  
+
   RCLCPP_INFO(node_->get_logger(), "SphereManager initialized");
+}
+
+std::string SphereManager::generateSphereId()
+{
+  // Fix Bug #2: Thread-safe ID generation using member variable
+  return "sphere_" + std::to_string(next_sphere_id_++);
 }
 
 std::string SphereManager::addSphere(
@@ -24,19 +31,28 @@ std::string SphereManager::addSphere(
   double radius,
   const Eigen::Vector3d& position)
 {
+  // Fix Bug #5: Validate radius is positive
+  if (radius <= 0.0) {
+    RCLCPP_ERROR(node_->get_logger(),
+                 "Invalid radius %.4f for link '%s', must be positive",
+                 radius, parent_link.c_str());
+    return "";
+  }
+
   Sphere sphere(parent_link, radius, position);
-  std::string id = sphere.id;
-  
+  std::string id = generateSphereId();  // Fix Bug #2: Use member function
+  sphere.id = id;
+
   spheres_[id] = sphere;
-  
-  RCLCPP_INFO(node_->get_logger(), 
+
+  RCLCPP_INFO(node_->get_logger(),
               "Added sphere '%s' to link '%s' (r=%.4f, pos=[%.3f, %.3f, %.3f])",
               id.c_str(), parent_link.c_str(), radius,
               position.x(), position.y(), position.z());
-  
+
   // Publier les markers mis à jour
   publishMarkers();
-  
+
   return id;
 }
 
@@ -85,8 +101,9 @@ bool SphereManager::updateSphere(
 void SphereManager::clear()
 {
   spheres_.clear();
+  next_sphere_id_ = 0;  // Fix Bug #2: Reset counter when clearing
   RCLCPP_INFO(node_->get_logger(), "Cleared all spheres");
-  
+
   // Publier pour supprimer tous les markers
   publishMarkers();
 }

@@ -1,6 +1,7 @@
 #include "curobo_robot_setup/curobo_config.hpp"
 
 #include <fstream>
+#include <filesystem>  // Fix Bug #6: For file permission checks
 #include <yaml-cpp/yaml.h>
 
 namespace curobo_robot_setup
@@ -175,17 +176,51 @@ bool CuRoboConfig::saveToYaml(
     out << YAML::EndMap;  // kinematics
     out << YAML::EndMap;  // robot_cfg
     out << YAML::EndMap;  // root
-    
+
+    // Fix Bug #6: Validate file path before attempting to write
+    std::filesystem::path file_path(filepath);
+
+    // Check if parent directory exists
+    if (file_path.has_parent_path()) {
+      std::filesystem::path parent_path = file_path.parent_path();
+      if (!std::filesystem::exists(parent_path)) {
+        last_error_ = "Parent directory does not exist: " + parent_path.string();
+        return false;
+      }
+
+      // Check if parent directory is writable
+      auto parent_perms = std::filesystem::status(parent_path).permissions();
+      if ((parent_perms & std::filesystem::perms::owner_write) == std::filesystem::perms::none) {
+        last_error_ = "No write permission for directory: " + parent_path.string();
+        return false;
+      }
+    }
+
+    // Check if file already exists and is writable
+    if (std::filesystem::exists(filepath)) {
+      auto file_perms = std::filesystem::status(filepath).permissions();
+      if ((file_perms & std::filesystem::perms::owner_write) == std::filesystem::perms::none) {
+        last_error_ = "No write permission for existing file: " + filepath;
+        return false;
+      }
+    }
+
     // Write to file
     std::ofstream fout(filepath);
     if (!fout.is_open()) {
       last_error_ = "Could not open file for writing: " + filepath;
       return false;
     }
-    
+
     fout << out.c_str();
     fout.close();
-    
+
+    // Verify write was successful
+    if (!std::filesystem::exists(filepath)) {
+      last_error_ = "File was not created: " + filepath;
+      return false;
+    }
+
     return true;
     
   } catch (const std::exception& e) {
@@ -231,35 +266,37 @@ bool CuRoboConfig::loadFromYaml(
     spheres_by_link.clear();
     if (kinematics["collision_spheres"]) {
       YAML::Node spheres_node = kinematics["collision_spheres"];
-      
+
+      // Fix Bug #2: Use local counter instead of static to avoid persistence issues
+      int sphere_counter = 0;
+
       for (auto it = spheres_node.begin(); it != spheres_node.end(); ++it) {
         std::string link_name = it->first.as<std::string>();
         YAML::Node link_spheres = it->second;
-        
+
         std::vector<Sphere> spheres;
         for (size_t i = 0; i < link_spheres.size(); ++i) {
           YAML::Node sphere_node = link_spheres[i];
-          
+
           Sphere sphere;
           sphere.parent_link = link_name;
-          
+
           if (sphere_node["radius"]) {
             sphere.radius = sphere_node["radius"].as<double>();
           }
-          
+
           if (sphere_node["center"] && sphere_node["center"].size() == 3) {
             sphere.position.x() = sphere_node["center"][0].as<double>();
             sphere.position.y() = sphere_node["center"][1].as<double>();
             sphere.position.z() = sphere_node["center"][2].as<double>();
           }
-          
-          // Generate ID
-          static int counter = 0;
-          sphere.id = "sphere_" + std::to_string(counter++);
-          
+
+          // Fix Bug #2: Generate ID using local counter (resets on each load)
+          sphere.id = "sphere_loaded_" + std::to_string(sphere_counter++);
+
           spheres.push_back(sphere);
         }
-        
+
         spheres_by_link[link_name] = spheres;
       }
     }
