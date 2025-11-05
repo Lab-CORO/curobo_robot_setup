@@ -14,20 +14,11 @@ namespace curobo_robot_setup
 
 struct JointConfig
 {
+  // Joint is active (included in cuRobo configuration)
   bool active = true;
 
-  // Note: Position limits are read from URDF by cuRobo
-  // We keep them for display/validation only
-  double pos_min = -3.14;
-  double pos_max = 3.14;
-
-  // Velocity, acceleration, and jerk limits
-  double vel_max = 1.0;
-  double acc_max = 1.0;
-  double jerk_max = 1.0;
-
-  // Collision ignore list
-  std::vector<std::string> ignore_collisions;
+  // Note: All joint limits (position, velocity, acceleration) are read
+  // directly from the URDF by cuRobo. We only track which joints are active.
 
   JointConfig() = default;
 };

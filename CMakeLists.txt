@@ -48,6 +48,7 @@ set(SOURCE_FILES
   src/sphere_manager.cpp
   src/curobo_config.cpp
   src/joint_config_dialog.cpp
+  src/collision_config_dialog.cpp
 )
 
 set(HEADER_FILES
@@ -55,6 +56,7 @@ set(HEADER_FILES
   include/curobo_robot_setup/sphere_manager.hpp
   include/curobo_robot_setup/curobo_config.hpp
   include/curobo_robot_setup/joint_config_dialog.hpp
+  include/curobo_robot_setup/collision_config_dialog.hpp
 )
 
 # Create library

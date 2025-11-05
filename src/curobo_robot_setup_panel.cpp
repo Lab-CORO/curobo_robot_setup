@@ -1,5 +1,5 @@
 #include "curobo_robot_setup/curobo_robot_setup_panel.hpp"
-#include "curobo_robot_setup/joint_config_dialog.hpp"
+#include "curobo_robot_setup/collision_config_dialog.hpp"
 #include "ui_curobo_robot_setup.h"
 
 #include <QFileDialog>
@@ -424,9 +424,13 @@ void CuRoboSetupPanel::onConfigureJoints()
     return;
   }
 
-  JointConfigDialog dialog(robot_model_, joint_configs_, this);
+  // New interface: Configure self-collision ignore pairs and buffers
+  CollisionConfigDialog dialog(robot_model_, collision_config_, this);
   if (dialog.exec() == QDialog::Accepted) {
     updateConfigTab();
+    QMessageBox::information(this, "Configuration Updated",
+      "Self-collision configuration has been updated.\n"
+      "Joint limits will be read directly from the URDF by cuRobo.");
   }
 }
 
@@ -440,16 +444,24 @@ void CuRoboSetupPanel::updateConfigTab()
     if (pair.second.active) active_joints++;
   }
 
+  // Count collision ignore pairs
+  int ignore_pairs_count = 0;
+  for (const auto& pair : collision_config_.ignore_pairs) {
+    ignore_pairs_count += pair.second.size();
+  }
+
   QString stats = QString("URDF: %1\nLinks: %2\nJoints: %3\nSpheres: %4")
     .arg(QString::fromStdString(robot_model_->getName()))
     .arg(robot_model_->links_.size())
     .arg(robot_model_->joints_.size())
     .arg(sphere_manager_->getTotalSphereCount());
-  
+
   ui_->label_stats->setText(stats);
 
   ui_->label_joints_summary->setText(
-    QString("%1 active joints configured").arg(active_joints));
+    QString("%1 active joints | %2 collision ignore pairs configured")
+    .arg(active_joints)
+    .arg(ignore_pairs_count));
 }
 
 void CuRoboSetupPanel::onSaveYaml()
