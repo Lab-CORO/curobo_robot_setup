@@ -373,17 +373,18 @@ JointConfig CuRoboConfig::getDefaultJointConfig(
   const std::string& joint_name)
 {
   JointConfig config;
-  
+
   if (!robot_model) {
     return config;
   }
-  
+
   auto joint = robot_model->getJoint(joint_name);
   if (joint && joint->limits) {
-    config.pos_min = joint->limits->lower;
-    config.pos_max = joint->limits->upper;
+    // Joint limits are read directly from URDF by cuRobo
+    // We only track active status here
+    config.active = true;
   }
-  
+
   return config;
 }
 

@@ -57,9 +57,9 @@ void JointConfigDialog::setupUI()
   
   // Table
   table_ = new QTableWidget(this);
-  table_->setColumnCount(7);
+  table_->setColumnCount(2);
   table_->setHorizontalHeaderLabels({
-    "Active", "Joint Name", "Pos Min", "Pos Max", "Vel Max", "Acc Max", "Jerk Max"
+    "Active", "Joint Name"
   });
   
   table_->horizontalHeader()->setStretchLastSection(false);
@@ -132,19 +132,6 @@ void JointConfigDialog::populateTable()
     QTableWidgetItem* name_item = new QTableWidgetItem(QString::fromStdString(joint_name));
     name_item->setFlags(name_item->flags() & ~Qt::ItemIsEditable);
     table_->setItem(i, 1, name_item);
-    
-    // Columns 2-6: Numeric values
-    QTableWidgetItem* pos_min_item = new QTableWidgetItem(QString::number(config.pos_min, 'f', 4));
-    QTableWidgetItem* pos_max_item = new QTableWidgetItem(QString::number(config.pos_max, 'f', 4));
-    QTableWidgetItem* vel_max_item = new QTableWidgetItem(QString::number(config.vel_max, 'f', 4));
-    QTableWidgetItem* acc_max_item = new QTableWidgetItem(QString::number(config.acc_max, 'f', 4));
-    QTableWidgetItem* jerk_max_item = new QTableWidgetItem(QString::number(config.jerk_max, 'f', 4));
-    
-    table_->setItem(i, 2, pos_min_item);
-    table_->setItem(i, 3, pos_max_item);
-    table_->setItem(i, 4, vel_max_item);
-    table_->setItem(i, 5, acc_max_item);
-    table_->setItem(i, 6, jerk_max_item);
   }
   
   table_->blockSignals(false);
@@ -153,10 +140,9 @@ void JointConfigDialog::populateTable()
 void JointConfigDialog::updateJointConfigs()
 {
   for (int row = 0; row < table_->rowCount(); ++row) {
-    // Fix Bug #3: Check for null pointer before dereferencing
+    // Get joint name
     QTableWidgetItem* name_item = table_->item(row, 1);
     if (!name_item) {
-      qWarning() << "Missing joint name item at row" << row;
       continue;
     }
     QString joint_name = name_item->text();
@@ -170,39 +156,6 @@ void JointConfigDialog::updateJointConfigs()
       if (checkbox) {
         config.active = checkbox->isChecked();
       }
-    }
-
-    // Fix Bug #3: Get numeric values with null checks
-    bool ok;
-
-    QTableWidgetItem* pos_min_item = table_->item(row, 2);
-    if (pos_min_item) {
-      config.pos_min = pos_min_item->text().toDouble(&ok);
-    }
-
-    QTableWidgetItem* pos_max_item = table_->item(row, 3);
-    if (pos_max_item) {
-      config.pos_max = pos_max_item->text().toDouble(&ok);
-    }
-
-    QTableWidgetItem* vel_max_item = table_->item(row, 4);
-    if (vel_max_item) {
-      config.vel_max = vel_max_item->text().toDouble(&ok);
-    }
-
-    QTableWidgetItem* acc_max_item = table_->item(row, 5);
-    if (acc_max_item) {
-      config.acc_max = acc_max_item->text().toDouble(&ok);
-    }
-
-    QTableWidgetItem* jerk_max_item = table_->item(row, 6);
-    if (jerk_max_item) {
-      config.jerk_max = jerk_max_item->text().toDouble(&ok);
-    }
-
-    // Keep existing collision ignores if any
-    if (joint_configs_.find(joint_name.toStdString()) != joint_configs_.end()) {
-      config.ignore_collisions = joint_configs_[joint_name.toStdString()].ignore_collisions;
     }
 
     joint_configs_[joint_name.toStdString()] = config;
@@ -298,25 +251,21 @@ void JointConfigDialog::onImportFromUrdf()
   // Re-import all joint configs from URDF
   for (int row = 0; row < table_->rowCount(); ++row) {
     QString joint_name = table_->item(row, 1)->text();
-    
+
     JointConfig config = CuRoboConfig::getDefaultJointConfig(
-      robot_model_, 
+      robot_model_,
       joint_name.toStdString()
     );
-    
-    // Update table
-    table_->item(row, 2)->setText(QString::number(config.pos_min, 'f', 4));
-    table_->item(row, 3)->setText(QString::number(config.pos_max, 'f', 4));
-    table_->item(row, 4)->setText(QString::number(config.vel_max, 'f', 4));
-    table_->item(row, 5)->setText(QString::number(config.acc_max, 'f', 4));
-    table_->item(row, 6)->setText(QString::number(config.jerk_max, 'f', 4));
+
+    // Update joint_configs_ map
+    joint_configs_[joint_name.toStdString()] = config;
   }
-  
-  QMessageBox::information(this, "Import Complete", 
-    "Joint limits imported from URDF");
+
+  QMessageBox::information(this, "Import Complete",
+    "Joint configurations imported from URDF.\nJoint limits will be read directly from URDF by cuRobo.");
 }
 
-void JointConfigDialog::onCellChanged(int row, int column)
+void JointConfigDialog::onCellChanged(int /*row*/, int /*column*/)
 {
   // Real-time validation could go here if needed
 }
