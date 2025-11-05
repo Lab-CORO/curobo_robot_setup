@@ -60,21 +60,22 @@ private Q_SLOTS:
 
 private:
   void setupConnections();
-  
+
   // URDF
   bool loadUrdfFromFile(const std::string& filepath);
   void publishUrdf();
   void updateStatusLabel(const QString& message, bool success = true);
-  
+
   // Links
   void populateLinksTree();
   void buildLinkTreeRecursive(QTreeWidgetItem* parent, const std::string& link_name);
   std::string getLinkType(const std::string& link_name) const;
   void populateLinkComboBoxes();
-  
+  void selectLinkInTree(QTreeWidgetItem* item, const std::string& link_name);
+
   // Spheres
   void updateSpheresTree();
-  
+
   // Configuration
   void updateConfigTab();
   void initializeJointConfigs();

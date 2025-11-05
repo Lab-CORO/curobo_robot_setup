@@ -332,18 +332,56 @@ void CuRoboSetupPanel::onDeleteSphere()
 void CuRoboSetupPanel::onSphereSelected(QTreeWidgetItem* item, int column)
 {
   if (!item) return;
-  
+
   QString sphere_id = item->data(0, Qt::UserRole).toString();
   if (sphere_id.isEmpty()) return;
-  
+
   selected_sphere_id_ = sphere_id.toStdString();
-  
+
   const Sphere* sphere = sphere_manager_->getSphere(selected_sphere_id_);
   if (sphere) {
+    // Fix Bug: Block signals while updating spinboxes to prevent unwanted updates
+    ui_->doubleSpinBox_radius->blockSignals(true);
+    ui_->doubleSpinBox_x->blockSignals(true);
+    ui_->doubleSpinBox_y->blockSignals(true);
+    ui_->doubleSpinBox_z->blockSignals(true);
+
     ui_->doubleSpinBox_radius->setValue(sphere->radius);
     ui_->doubleSpinBox_x->setValue(sphere->position.x());
     ui_->doubleSpinBox_y->setValue(sphere->position.y());
     ui_->doubleSpinBox_z->setValue(sphere->position.z());
+
+    ui_->doubleSpinBox_radius->blockSignals(false);
+    ui_->doubleSpinBox_x->blockSignals(false);
+    ui_->doubleSpinBox_y->blockSignals(false);
+    ui_->doubleSpinBox_z->blockSignals(false);
+
+    // Auto-select the parent link of the sphere
+    if (sphere->parent_link != selected_link_) {
+      selected_link_ = sphere->parent_link;
+      ui_->label_selected_link->setText(QString::fromStdString(selected_link_));
+
+      // Find and select the link in the tree
+      for (int i = 0; i < ui_->treeWidget_links->topLevelItemCount(); ++i) {
+        QTreeWidgetItem* topItem = ui_->treeWidget_links->topLevelItem(i);
+        selectLinkInTree(topItem, selected_link_);
+      }
+    }
+  }
+}
+
+// Helper function to recursively find and select a link in the tree
+void CuRoboSetupPanel::selectLinkInTree(QTreeWidgetItem* item, const std::string& link_name)
+{
+  if (!item) return;
+
+  if (item->data(0, Qt::UserRole).toString().toStdString() == link_name) {
+    ui_->treeWidget_links->setCurrentItem(item);
+    return;
+  }
+
+  for (int i = 0; i < item->childCount(); ++i) {
+    selectLinkInTree(item->child(i), link_name);
   }
 }
 
@@ -379,6 +417,14 @@ void CuRoboSetupPanel::onRadiusChanged(double value)
   if (!selected_sphere_id_.empty()) {
     const Sphere* sphere = sphere_manager_->getSphere(selected_sphere_id_);
     if (sphere) {
+      // Fix Bug: Only allow modification if the selected link matches sphere's parent link
+      if (sphere->parent_link != selected_link_) {
+        RCLCPP_WARN(node_->get_logger(),
+                    "Cannot modify sphere '%s': belongs to link '%s' but '%s' is selected",
+                    selected_sphere_id_.c_str(), sphere->parent_link.c_str(), selected_link_.c_str());
+        return;
+      }
+
       sphere_manager_->updateSphere(selected_sphere_id_, value, sphere->position);
       updateSpheresTree();
     }
@@ -390,6 +436,14 @@ void CuRoboSetupPanel::onPositionChanged(double value)
   if (!selected_sphere_id_.empty()) {
     const Sphere* sphere = sphere_manager_->getSphere(selected_sphere_id_);
     if (sphere) {
+      // Fix Bug: Only allow modification if the selected link matches sphere's parent link
+      if (sphere->parent_link != selected_link_) {
+        RCLCPP_WARN(node_->get_logger(),
+                    "Cannot modify sphere '%s': belongs to link '%s' but '%s' is selected",
+                    selected_sphere_id_.c_str(), sphere->parent_link.c_str(), selected_link_.c_str());
+        return;
+      }
+
       Eigen::Vector3d new_pos(
         ui_->doubleSpinBox_x->value(),
         ui_->doubleSpinBox_y->value(),
