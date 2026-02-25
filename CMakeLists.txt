@@ -13,12 +13,18 @@ endif()
 # Find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
+find_package(interactive_markers REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(tinyxml2_vendor REQUIRED)
+find_package(TinyXML2 REQUIRED)
 find_package(rviz_common REQUIRED)
 find_package(rviz_default_plugins REQUIRED)
 find_package(rviz_ogre_vendor REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(urdf REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)
 
 # Qt5
 find_package(Qt5 REQUIRED COMPONENTS Core Widgets)
@@ -29,10 +35,20 @@ set(CMAKE_AUTORCC ON)
 # Set AUTOUIC search paths for .ui files
 set(CMAKE_AUTOUIC_SEARCH_PATHS ${CMAKE_CURRENT_SOURCE_DIR}/ui)
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Generate ROS2 service interfaces
+# ──────────────────────────────────────────────────────────────────────────────
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "srv/GenerateSpheres.srv"
+  DEPENDENCIES std_msgs
+)
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Include directories
+# ──────────────────────────────────────────────────────────────────────────────
 include_directories(
   include
-  ${CMAKE_CURRENT_BINARY_DIR}  # Pour les fichiers générés par UIC
+  ${CMAKE_CURRENT_BINARY_DIR}
   ${Qt5Widgets_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIRS}
 )
@@ -59,16 +75,21 @@ set(HEADER_FILES
   include/curobo_robot_setup/collision_config_dialog.hpp
 )
 
-# Create library
-add_library(${PROJECT_NAME} SHARED
+# Create library (named _plugin to avoid conflict with rosidl target of same name)
+set(PLUGIN_LIB ${PROJECT_NAME}_plugin)
+
+add_library(${PLUGIN_LIB} SHARED
   ${SOURCE_FILES}
   ${HEADER_FILES}
   ${UI_FILES}
 )
 
 # Dependencies
-ament_target_dependencies(${PROJECT_NAME}
+ament_target_dependencies(${PLUGIN_LIB}
   rclcpp
+  interactive_markers
+  geometry_msgs
+  visualization_msgs
   rviz_common
   rviz_default_plugins
   rviz_ogre_vendor
@@ -77,14 +98,32 @@ ament_target_dependencies(${PROJECT_NAME}
   std_msgs
 )
 
-# Link libraries
-target_link_libraries(${PROJECT_NAME}
+# Link against generated service interfaces
+rosidl_get_typesupport_target(cpp_typesupport_target "${PROJECT_NAME}" "rosidl_typesupport_cpp")
+target_link_libraries(${PLUGIN_LIB}
   Qt5::Widgets
   yaml-cpp
+  tinyxml2::tinyxml2
+  "${cpp_typesupport_target}"
 )
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Standalone node: urdf_extractor
+# ──────────────────────────────────────────────────────────────────────────────
+add_executable(urdf_extractor src/urdf_extractor_node.cpp)
+
+ament_target_dependencies(urdf_extractor rclcpp std_msgs)
+
+target_link_libraries(urdf_extractor tinyxml2::tinyxml2)
+
+install(TARGETS urdf_extractor
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Install library
-install(TARGETS ${PROJECT_NAME}
+# ──────────────────────────────────────────────────────────────────────────────
+install(TARGETS ${PLUGIN_LIB}
   EXPORT ${PROJECT_NAME}
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
@@ -116,14 +155,23 @@ install(DIRECTORY rviz/
   DESTINATION share/${PROJECT_NAME}/rviz
 )
 
+# Install Python scripts
+install(PROGRAMS
+  src/sphere_fit_service.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 # Export plugin
 pluginlib_export_plugin_description_file(rviz_common plugin.xml)
 
 # Export dependencies
 ament_export_include_directories(include)
-ament_export_libraries(${PROJECT_NAME})
+ament_export_libraries(${PLUGIN_LIB})
 ament_export_dependencies(
   rclcpp
+  interactive_markers
+  geometry_msgs
+  visualization_msgs
   rviz_common
   rviz_default_plugins
   rviz_ogre_vendor

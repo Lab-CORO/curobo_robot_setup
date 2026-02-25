@@ -8,21 +8,30 @@
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>rosidl_default_generators</buildtool_depend>
 
   <depend>rclcpp</depend>
+  <depend>interactive_markers</depend>
+  <depend>geometry_msgs</depend>
+  <depend>visualization_msgs</depend>
   <depend>rviz_common</depend>
   <depend>rviz_default_plugins</depend>
   <depend>rviz_ogre_vendor</depend>
   <depend>pluginlib</depend>
   <depend>urdf</depend>
+  <depend>tinyxml2_vendor</depend>
   <depend>std_msgs</depend>
   <depend>qtbase5-dev</depend>
   <depend>libqt5-core</depend>
   <depend>libqt5-gui</depend>
   <depend>libqt5-widgets</depend>
 
+  <exec_depend>rosidl_default_runtime</exec_depend>
+
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
+
+  <member_of_group>rosidl_interface_packages</member_of_group>
 
   <export>
     <build_type>ament_cmake</build_type>

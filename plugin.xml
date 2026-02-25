@@ -1,4 +1,4 @@
-<library path="curobo_robot_setup">
+<library path="curobo_robot_setup_plugin">
   <class name="curobo_robot_setup/CuRoboSetupPanel" 
          type="curobo_robot_setup::CuRoboSetupPanel" 
          base_class_type="rviz_common::Panel">

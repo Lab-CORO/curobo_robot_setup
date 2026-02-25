@@ -1,0 +1,15 @@
+# Request
+string urdf_path          # Absolute path to the URDF file
+string link_name          # Link name to generate spheres for
+int32  n_spheres          # Number of spheres to generate
+float64 surface_sphere_radius   # Radius for surface spheres (m)
+string fit_type           # SphereFitType: VOXEL_VOLUME_SAMPLE_SURFACE | VOXEL_SURFACE |
+                          #   VOXEL_VOLUME | VOXEL_VOLUME_INSIDE | SAMPLE_SURFACE
+---
+# Response
+bool     success
+string   message
+float64[] positions_x
+float64[] positions_y
+float64[] positions_z
+float64[] radii
