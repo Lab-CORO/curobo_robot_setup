@@ -11,6 +11,9 @@
 #include <fstream>
 #include <sstream>
 
+#include <rviz_common/display_context.hpp>
+#include <rviz_common/display_group.hpp>
+
 namespace curobo_robot_setup
 {
 
@@ -22,50 +25,6 @@ CuRoboSetupPanel::CuRoboSetupPanel(QWidget * parent)
 : rviz_common::Panel(parent)
 , ui_(new Ui::Dialog)
 {
-  node_ = rclcpp::Node::make_shared("curobo_robot_setup_panel");
-
-  // URDF publisher
-  urdf_publisher_ = node_->create_publisher<std_msgs::msg::String>(
-    "robot_description",
-    rclcpp::QoS(1).transient_local());
-
-  publish_timer_ = node_->create_wall_timer(
-    std::chrono::milliseconds(1000),
-    [this]() {
-      if (!current_urdf_string_.empty()) {
-        publishUrdf();
-      }
-    });
-
-  // Service client for sphere auto-generation
-  gen_spheres_client_ = node_->create_client<srv::GenerateSpheres>(
-    "generate_spheres");
-
-  // Sphere manager (interactive markers)
-  sphere_manager_ = std::make_unique<SphereManager>(node_);
-
-  // Callback: called when the user drags a sphere in RViz.
-  // The callback fires on the ROS2 executor thread – we marshal to Qt thread.
-  sphere_manager_->setOnMovedCallback(
-    [this](const std::string & id, const Eigen::Vector3d & new_pos) {
-      QMetaObject::invokeMethod(
-        this,
-        [this, id, new_pos]() {
-          // Update spinboxes only if this is the currently selected sphere
-          if (selected_sphere_id_ == id) {
-            QSignalBlocker bx(ui_->doubleSpinBox_x);
-            QSignalBlocker by(ui_->doubleSpinBox_y);
-            QSignalBlocker bz(ui_->doubleSpinBox_z);
-            ui_->doubleSpinBox_x->setValue(new_pos.x());
-            ui_->doubleSpinBox_y->setValue(new_pos.y());
-            ui_->doubleSpinBox_z->setValue(new_pos.z());
-          }
-          updateSpheresTree();
-          updateConfigTab();
-        },
-        Qt::QueuedConnection);
-    });
-
   curobo_config_ = std::make_unique<CuRoboConfig>();
 
   ui_->setupUi(this);
@@ -76,8 +35,6 @@ CuRoboSetupPanel::CuRoboSetupPanel(QWidget * parent)
   status_label_->setStyleSheet("QLabel { color: #666; }");
 
   setupConnections();
-
-  RCLCPP_INFO(node_->get_logger(), "CuRobo Robot Setup Panel initialized");
 }
 
 CuRoboSetupPanel::~CuRoboSetupPanel()
@@ -330,6 +287,7 @@ void CuRoboSetupPanel::onDeleteSphere()
     return;
   }
 
+  sphere_manager_->setSelectedSphere("");
   sphere_manager_->removeSphere(selected_sphere_id_);
   selected_sphere_id_.clear();
   updateSpheresTree();
@@ -343,6 +301,7 @@ void CuRoboSetupPanel::onSphereSelected(QTreeWidgetItem * item, int /*column*/)
   if (id_str.isEmpty()) return;
 
   selected_sphere_id_ = id_str.toStdString();
+  sphere_manager_->setSelectedSphere(selected_sphere_id_);
 
   const Sphere * sphere = sphere_manager_->getSphere(selected_sphere_id_);
   if (!sphere) return;
@@ -669,6 +628,84 @@ void CuRoboSetupPanel::onLoadYaml()
 // ══════════════════════════════════════════════════════════════════════════════
 // RViz Panel lifecycle
 // ══════════════════════════════════════════════════════════════════════════════
+
+void CuRoboSetupPanel::onInitialize()
+{
+  Panel::onInitialize();
+
+  // Use RViz2's own node — it is already spinning in RViz2's executor
+  node_ = getDisplayContext()->getRosNodeAbstraction().lock()->get_raw_node();
+
+  // URDF publisher
+  urdf_publisher_ = node_->create_publisher<std_msgs::msg::String>(
+    "robot_description",
+    rclcpp::QoS(1).transient_local());
+
+  publish_timer_ = node_->create_wall_timer(
+    std::chrono::milliseconds(1000),
+    [this]() {
+      if (!current_urdf_string_.empty()) {
+        publishUrdf();
+      }
+    });
+
+  // Service client for sphere auto-generation
+  gen_spheres_client_ = node_->create_client<srv::GenerateSpheres>("generate_spheres");
+
+  // Sphere manager (interactive markers)
+  sphere_manager_ = std::make_unique<SphereManager>(node_);
+
+  // Callback fired on RViz2's executor thread — marshal to Qt main thread
+  sphere_manager_->setOnMovedCallback(
+    [this](const std::string & id, const Eigen::Vector3d & new_pos) {
+      QMetaObject::invokeMethod(
+        this,
+        [this, id, new_pos]() {
+          if (selected_sphere_id_ == id) {
+            QSignalBlocker bx(ui_->doubleSpinBox_x);
+            QSignalBlocker by(ui_->doubleSpinBox_y);
+            QSignalBlocker bz(ui_->doubleSpinBox_z);
+            ui_->doubleSpinBox_x->setValue(new_pos.x());
+            ui_->doubleSpinBox_y->setValue(new_pos.y());
+            ui_->doubleSpinBox_z->setValue(new_pos.z());
+          }
+          updateSpheresTree();
+          updateConfigTab();
+        },
+        Qt::QueuedConnection);
+    });
+
+  RCLCPP_INFO(node_->get_logger(), "CuRobo Robot Setup Panel initialized");
+
+  ensureIMDisplay();
+}
+
+void CuRoboSetupPanel::ensureIMDisplay()
+{
+  auto * root = getDisplayContext()->getRootDisplayGroup();
+  const QString class_id = "rviz_default_plugins/InteractiveMarkers";
+
+  for (int i = 0; i < root->numDisplays(); ++i) {
+    if (root->getDisplayAt(i)->getClassId() == class_id) {
+      return;  // already present
+    }
+  }
+
+  auto * display = root->createDisplay(class_id);
+  if (!display) {
+    RCLCPP_WARN(node_->get_logger(),
+      "Could not create InteractiveMarkers display automatically");
+    return;
+  }
+  display->initialize(getDisplayContext());
+  display->setTopic(
+    "/collision_spheres/update",
+    "visualization_msgs/msg/InteractiveMarkerUpdate");
+  display->setEnabled(true);
+
+  RCLCPP_INFO(node_->get_logger(),
+    "Auto-created InteractiveMarkers display on /collision_spheres/update");
+}
 
 void CuRoboSetupPanel::load(const rviz_common::Config & config)
 {

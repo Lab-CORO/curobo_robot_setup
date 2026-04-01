@@ -329,7 +329,7 @@
        <item>
         <widget class="QGroupBox" name="groupBox_auto_gen">
          <property name="title">
-          <string>Auto-Generate Spheres (sphere_fit)</string>
+          <string>Auto-Generate Spheres (sphere_fit) - Experimental</string>
          </property>
          <layout class="QGridLayout" name="gridLayout_auto_gen">
 

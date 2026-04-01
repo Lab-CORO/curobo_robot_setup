@@ -105,11 +105,51 @@ bool SphereManager::updateSphere(
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
+void SphereManager::setSelectedSphere(const std::string & sphere_id)
+{
+  std::string prev_id;
+  {
+    std::lock_guard<std::mutex> lock(spheres_mutex_);
+    prev_id = selected_sphere_id_;
+    selected_sphere_id_ = sphere_id;
+  }
+
+  // Rebuild previous selected sphere without controls
+  if (!prev_id.empty() && prev_id != sphere_id) {
+    std::lock_guard<std::mutex> lock(spheres_mutex_);
+    auto it = spheres_.find(prev_id);
+    if (it != spheres_.end()) {
+      auto im = buildInteractiveMarker(it->second, false);
+      im_server_->insert(im);
+      im_server_->setCallback(
+        prev_id,
+        std::bind(&SphereManager::processFeedback, this, std::placeholders::_1));
+    }
+  }
+
+  // Rebuild new selected sphere with controls
+  if (!sphere_id.empty()) {
+    std::lock_guard<std::mutex> lock(spheres_mutex_);
+    auto it = spheres_.find(sphere_id);
+    if (it != spheres_.end()) {
+      auto im = buildInteractiveMarker(it->second, true);
+      im_server_->insert(im);
+      im_server_->setCallback(
+        sphere_id,
+        std::bind(&SphereManager::processFeedback, this, std::placeholders::_1));
+    }
+  }
+
+  im_server_->applyChanges();
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 void SphereManager::clear()
 {
   {
     std::lock_guard<std::mutex> lock(spheres_mutex_);
     spheres_.clear();
+    selected_sphere_id_.clear();
     next_sphere_id_ = 0;
   }
 
@@ -193,7 +233,12 @@ void SphereManager::setMarkerColor(float r, float g, float b, float a)
 
 void SphereManager::insertMarker(const Sphere & sphere)
 {
-  auto im = buildInteractiveMarker(sphere);
+  bool selected;
+  {
+    std::lock_guard<std::mutex> lock(spheres_mutex_);
+    selected = (sphere.id == selected_sphere_id_);
+  }
+  auto im = buildInteractiveMarker(sphere, selected);
   im_server_->insert(im);
   im_server_->setCallback(
     sphere.id,
@@ -202,29 +247,97 @@ void SphereManager::insertMarker(const Sphere & sphere)
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-InteractiveMarker SphereManager::buildInteractiveMarker(const Sphere & sphere) const
+InteractiveMarker SphereManager::buildInteractiveMarker(
+  const Sphere & sphere, bool selected) const
 {
   InteractiveMarker im;
-  im.header.frame_id = sphere.parent_link;
-  im.header.stamp = rclcpp::Time(0);
-  im.name = sphere.id;
-  im.description = "";
-  // Control handle scale – at least 3× the sphere so handles are visible
-  im.scale = static_cast<float>(std::max(sphere.radius * 4.0, 0.05));
-
-  im.pose.position.x = sphere.position.x();
-  im.pose.position.y = sphere.position.y();
-  im.pose.position.z = sphere.position.z();
+  im.header.frame_id    = sphere.parent_link;
+  im.header.stamp       = rclcpp::Time(0);
+  im.name               = sphere.id;
+  im.description        = "";
+  im.scale              = static_cast<float>(std::max(sphere.radius * 8.0, 0.1));
+  im.pose.position.x    = sphere.position.x();
+  im.pose.position.y    = sphere.position.y();
+  im.pose.position.z    = sphere.position.z();
   im.pose.orientation.w = 1.0;
 
-  // ── Visual + MOVE_3D control (drag sphere directly) ──────────────────────
-  InteractiveMarkerControl move_ctrl;
-  move_ctrl.name = "move_3d";
-  move_ctrl.always_visible = true;
-  move_ctrl.orientation.w = 1.0;
-  move_ctrl.interaction_mode = InteractiveMarkerControl::MOVE_3D;
-  move_ctrl.markers.push_back(buildSphereVisual(sphere));
-  im.controls.push_back(move_ctrl);
+  // ── Contrôle 0 : sphère visuelle ─────────────────────────────────────────
+  // Sélectionnée → MOVE_3D (Shift+Ctrl+drag) + alpha plein
+  // Non sélectionnée → NONE (visible uniquement) + alpha réduit
+  {
+    auto sphere_visual = buildSphereVisual(sphere);
+    sphere_visual.color.a = selected ? marker_color_a_ : marker_color_a_ * 0.35f;
+
+    InteractiveMarkerControl ctrl;
+    ctrl.name             = "move_3d";
+    ctrl.always_visible   = true;
+    ctrl.orientation.w    = 1.0;
+    ctrl.interaction_mode = selected
+      ? InteractiveMarkerControl::MOVE_3D
+      : InteractiveMarkerControl::NONE;
+    ctrl.markers.push_back(sphere_visual);
+    im.controls.push_back(ctrl);
+  }
+
+  if (!selected) {
+    return im;  // pas de flèches pour les sphères non sélectionnées
+  }
+
+  // ── Contrôles 1-3 : flèches MOVE_AXIS (clic-glisser normal) ───────────────
+  // ctrl.orientation : axe de déplacement (local X du contrôle = axe monde)
+  //   X → quat 90° autour X : (K,K,0,0) → local X = monde X
+  //   Y → quat 90° autour Z : (K,0,0,K) → local X = monde Y
+  //   Z → quat 90° autour Y : (K,0,K,0) → local X = monde -Z (bidirectionnel ⇒ OK)
+  //
+  // arrow.pose.orientation : orientation visuelle de la flèche dans le frame du marker
+  //   ARROW pointe par défaut le long de son X local.
+  //   Les markers sont dans le frame du marker (pas du contrôle), donc :
+  //   X → identité
+  //   Y → 90° autour Z : (K,0,0,K)  → local X → monde Y
+  //   Z → -90° autour Y : (K,0,-K,0) → local X → monde +Z
+
+  static const float K = 0.70711f;
+
+  struct AxisDef {
+    const char * name;
+    float qw, qx, qy, qz;          // orientation du contrôle
+    float r, g, b;                  // couleur
+    float aw, ax, ay, az;           // orientation visuelle de la flèche
+  };
+  static const AxisDef axes[3] = {
+    {"move_x", K, K,  0,  0,  1.0f, 0.0f, 0.0f,  1.f,  0.f,  0.f,  0.f},
+    {"move_y", K, 0,  0,  K,  0.0f, 1.0f, 0.0f,  K,    0.f,  0.f,  K  },
+    {"move_z", K, 0,  K,  0,  0.0f, 0.0f, 1.0f,  K,    0.f, -K,    0.f},
+  };
+
+  for (const auto & ax : axes) {
+    InteractiveMarkerControl ctrl;
+    ctrl.name             = ax.name;
+    ctrl.always_visible   = true;
+    ctrl.orientation_mode = InteractiveMarkerControl::FIXED;
+    ctrl.interaction_mode = InteractiveMarkerControl::MOVE_AXIS;
+    ctrl.orientation.w    = ax.qw;
+    ctrl.orientation.x    = ax.qx;
+    ctrl.orientation.y    = ax.qy;
+    ctrl.orientation.z    = ax.qz;
+
+    Marker arrow;
+    arrow.type    = Marker::ARROW;
+    arrow.action  = Marker::ADD;
+    arrow.scale.x = sphere.radius * 6.0;   // longueur
+    arrow.scale.y = sphere.radius * 0.4;   // diamètre fût
+    arrow.scale.z = sphere.radius * 0.6;   // diamètre tête
+    arrow.color.r = ax.r;
+    arrow.color.g = ax.g;
+    arrow.color.b = ax.b;
+    arrow.color.a = 0.9f;
+    arrow.pose.orientation.w = ax.aw;
+    arrow.pose.orientation.x = ax.ax;
+    arrow.pose.orientation.y = ax.ay;
+    arrow.pose.orientation.z = ax.az;
+    ctrl.markers.push_back(arrow);
+    im.controls.push_back(ctrl);
+  }
 
   return im;
 }

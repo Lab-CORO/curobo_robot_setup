@@ -60,6 +60,10 @@ public:
   std::vector<Sphere> getAllSpheres() const;
   size_t getTotalSphereCount() const;
 
+  // ── Selection ─────────────────────────────────────────────────────────────
+  // Pass "" to deselect all. Rebuilds only the affected markers.
+  void setSelectedSphere(const std::string & sphere_id);
+
   // ── Appearance ────────────────────────────────────────────────────────────
   void setMarkerColor(float r, float g, float b, float a = 0.7f);
 
@@ -72,7 +76,8 @@ public:
 private:
   // Interactive marker helpers
   void insertMarker(const Sphere & sphere);
-  visualization_msgs::msg::InteractiveMarker buildInteractiveMarker(const Sphere & sphere) const;
+  visualization_msgs::msg::InteractiveMarker buildInteractiveMarker(
+    const Sphere & sphere, bool selected) const;
   visualization_msgs::msg::Marker buildSphereVisual(const Sphere & sphere) const;
 
   void processFeedback(
@@ -86,6 +91,7 @@ private:
 
   mutable std::mutex spheres_mutex_;
   std::map<std::string, Sphere> spheres_;
+  std::string selected_sphere_id_;
   int next_sphere_id_{0};
 
   float marker_color_r_{0.0f};

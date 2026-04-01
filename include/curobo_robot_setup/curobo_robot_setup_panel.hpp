@@ -85,6 +85,10 @@ private:
   void updateConfigTab();
   void initializeJointConfigs();
 
+  // RViz lifecycle
+  void onInitialize() override;
+  void ensureIMDisplay();
+
   // ── Members ───────────────────────────────────────────────────────────────
   Ui::Dialog * ui_;
 
