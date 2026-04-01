@@ -64,7 +64,10 @@ def launch_setup(context, *args, **kwargs):
         name='rviz2',
         output='screen',
         arguments=['-d', rviz_config],
-        parameters=[{'use_sim_time': False}]
+        parameters=[{
+            'use_sim_time': False,
+            'urdf_file': urdf_file_path,  # forwarded to CuRoboSetupPanel for auto-load
+        }]
     )
 
     return [

@@ -63,7 +63,7 @@ private:
   void setupConnections();
 
   // URDF
-  bool loadUrdfFromFile(const std::string & filepath);
+  bool loadUrdfFromFile(const std::string & filepath, bool silent = false);
   void publishUrdf();
   void updateStatusLabel(const QString & message, bool success = true);
 

@@ -114,7 +114,7 @@ void CuRoboSetupPanel::onLoadUrdf()
   }
 }
 
-bool CuRoboSetupPanel::loadUrdfFromFile(const std::string & filepath)
+bool CuRoboSetupPanel::loadUrdfFromFile(const std::string & filepath, bool silent)
 {
   try {
     std::ifstream file(filepath);
@@ -143,12 +143,14 @@ bool CuRoboSetupPanel::loadUrdfFromFile(const std::string & filepath)
     current_urdf_path_ = filepath;
     publishUrdf();
 
-    QMessageBox::information(this, "URDF Loaded",
-      QString("Robot: %1\nLinks: %2\nJoints: %3\n\n"
-              "Add RobotModel display in RViz to visualize.")
-        .arg(QString::fromStdString(robot_model_->getName()))
-        .arg(robot_model_->links_.size())
-        .arg(robot_model_->joints_.size()));
+    if (!silent) {
+      QMessageBox::information(this, "URDF Loaded",
+        QString("Robot: %1\nLinks: %2\nJoints: %3\n\n"
+                "Add RobotModel display in RViz to visualize.")
+          .arg(QString::fromStdString(robot_model_->getName()))
+          .arg(robot_model_->links_.size())
+          .arg(robot_model_->joints_.size()));
+    }
     return true;
 
   } catch (const std::exception & e) {
@@ -678,6 +680,37 @@ void CuRoboSetupPanel::onInitialize()
   RCLCPP_INFO(node_->get_logger(), "CuRobo Robot Setup Panel initialized");
 
   ensureIMDisplay();
+
+  // Auto-load URDF if the 'urdf_file' parameter was passed to the rviz2 node
+  // (e.g. via robot_setup.launch.py urdf_file:=/path/to/robot.urdf)
+  if (!node_->has_parameter("urdf_file")) {
+    node_->declare_parameter("urdf_file", std::string(""));
+  }
+  std::string urdf_file = node_->get_parameter("urdf_file").as_string();
+  if (!urdf_file.empty()) {
+    // Defer to next event-loop iteration so the panel widget is fully shown
+    QMetaObject::invokeMethod(
+      this,
+      [this, urdf_file]() {
+        if (loadUrdfFromFile(urdf_file, /*silent=*/true)) {
+          updateStatusLabel(
+            QString("✓ Auto-loaded: %1").arg(
+              QString::fromStdString(urdf_file)), true);
+          populateLinksTree();
+          populateLinkComboBoxes();
+          initializeJointConfigs();
+          updateConfigTab();
+          ui_->tabWidget->setCurrentIndex(1);
+          RCLCPP_INFO(node_->get_logger(),
+            "URDF auto-loaded from launch argument: %s", urdf_file.c_str());
+        } else {
+          RCLCPP_WARN(node_->get_logger(),
+            "Failed to auto-load URDF from launch argument: %s",
+            urdf_file.c_str());
+        }
+      },
+      Qt::QueuedConnection);
+  }
 }
 
 void CuRoboSetupPanel::ensureIMDisplay()
