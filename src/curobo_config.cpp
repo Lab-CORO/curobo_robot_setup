@@ -1,6 +1,7 @@
 #include "curobo_robot_setup/curobo_config.hpp"
 
 #include <fstream>
+#include <sstream>
 #include <filesystem>  // Fix Bug #6: For file permission checks
 #include <yaml-cpp/yaml.h>
 
@@ -17,6 +18,18 @@ bool CuRoboConfig::saveToYaml(
   const CSpaceConfig& cspace_config,
   const SelfCollisionConfig& collision_config)
 {
+  // yaml-cpp emits 0.0 as "0" (integer), which breaks cuRobo's type checks.
+  // This helper emits doubles as plain scalars guaranteed to contain a decimal point.
+  auto emit_float = [](YAML::Emitter & e, double val) {
+    std::ostringstream oss;
+    oss << val;
+    std::string s = oss.str();
+    if (s.find('.') == std::string::npos && s.find('e') == std::string::npos) {
+      s += ".0";
+    }
+    e << s;
+  };
+
   try {
     YAML::Emitter out;
     out << YAML::BeginMap;
@@ -81,7 +94,8 @@ bool CuRoboConfig::saveToYaml(
     
     // Collision configuration
 
-    out << YAML::Key << "collision_sphere_buffer" << YAML::Value << YAML::DoublePrecision(1) << collision_config.collision_sphere_buffer;
+    out << YAML::Key << "collision_sphere_buffer" << YAML::Value;
+    emit_float(out, collision_config.collision_sphere_buffer);
     out << YAML::Key << "extra_collision_spheres" << YAML::Value << YAML::BeginMap << YAML::EndMap;
     
     // Self collision ignore
@@ -103,7 +117,8 @@ bool CuRoboConfig::saveToYaml(
     if (!collision_config.buffer_distances.empty()) {
       out << YAML::Key << "self_collision_buffer" << YAML::Value << YAML::BeginMap;
       for (const auto& pair : collision_config.buffer_distances) {
-        out << YAML::Key << pair.first << YAML::Value << pair.second;
+        out << YAML::Key << pair.first << YAML::Value;
+        emit_float(out, pair.second);
       }
       out << YAML::EndMap;
     } else {
@@ -130,46 +145,46 @@ bool CuRoboConfig::saveToYaml(
     out << YAML::Key << "retract_config" << YAML::Value << YAML::Flow << YAML::BeginSeq;
     for (const auto& pair : joint_configs) {
       if (pair.second.active) {
-        out << 0.0;
+        emit_float(out, 0.0);
       }
     }
     out << YAML::EndSeq;
-    
+
     // Null space weight
     out << YAML::Key << "null_space_weight" << YAML::Value << YAML::Flow << YAML::BeginSeq;
     if (cspace_config.null_space_weight.empty()) {
-      // Default: all 1.0
       for (const auto& pair : joint_configs) {
         if (pair.second.active) {
-          out << 1.0;
+          emit_float(out, 1.0);
         }
       }
     } else {
       for (double w : cspace_config.null_space_weight) {
-        out << w;
+        emit_float(out, w);
       }
     }
     out << YAML::EndSeq;
-    
+
     // CSpace distance weight
     out << YAML::Key << "cspace_distance_weight" << YAML::Value << YAML::Flow << YAML::BeginSeq;
     if (cspace_config.cspace_distance_weight.empty()) {
-      // Default: all 1.0
       for (const auto& pair : joint_configs) {
         if (pair.second.active) {
-          out << 1.0;
+          emit_float(out, 1.0);
         }
       }
     } else {
       for (double w : cspace_config.cspace_distance_weight) {
-        out << w;
+        emit_float(out, w);
       }
     }
     out << YAML::EndSeq;
     
     // Global limits (NOT per-joint!)
-    out << YAML::Key << "max_jerk" << YAML::Value << YAML::DoublePrecision(1) << cspace_config.max_jerk;
-    out << YAML::Key << "max_acceleration" << YAML::Value << YAML::DoublePrecision(1) << cspace_config.max_acceleration;
+    out << YAML::Key << "max_jerk" << YAML::Value;
+    emit_float(out, cspace_config.max_jerk);
+    out << YAML::Key << "max_acceleration" << YAML::Value;
+    emit_float(out, cspace_config.max_acceleration);
     
     out << YAML::EndMap;  // cspace
     
